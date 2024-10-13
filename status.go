@@ -3,7 +3,7 @@ package main
 type status int
 
 const (
-	todo       status = 1
-	completing        = 2
-	done              = 3
+	todo       status = 0
+	completing        = 1
+	done              = 2
 )
