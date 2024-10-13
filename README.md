@@ -8,9 +8,9 @@ This kanban board inspired TUI allows you to efficiently organize your TODO list
 
 - [x] Come up with short but awesome name
 - [x] Create repo and go.mod
-- [ ] Model datatypes
-- [ ] Display TUI
-- [ ] Make TUI appealing to look at
+- [x] Model datatypes
+- [x] Display TUI
+- [x] Make TUI appealing to look at (thanks charm cli)
 - [ ] Create form (for todos)
 - [ ] Choose and connect to a local DB
 - [ ] Store todos in DB
@@ -18,4 +18,4 @@ This kanban board inspired TUI allows you to efficiently organize your TODO list
 - [ ] Create columns (TODO / In Progress / Done)
 - [ ] Allow tab & shift-tab movement between cols
 - [ ] Implement intuitive keybinds
-- [ ] ? Displays keybind guide
+- [x] ? Displays keybind guide (thanks charm cli)
