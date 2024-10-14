@@ -21,3 +21,11 @@ func (t Task) Description() string {
 func (t Task) FilterValue() string {
 	return t.title
 }
+
+func (t *Task) Next() {
+	if t.status == done {
+		t.status = todo
+	} else {
+		t.status++
+	}
+}
