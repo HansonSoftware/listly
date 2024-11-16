@@ -6,6 +6,10 @@ type Task struct {
 	description string
 }
 
+func NewTask(status status, title string, description string) Task {
+	return Task{status: status, title: title, description: description}
+}
+
 func (t Task) Status() status {
 	return t.status
 }

@@ -8,8 +8,9 @@ import (
 )
 
 func main() {
-	model := New()
-	program := tea.NewProgram(model)
+	models = []tea.Model{New(), NewForm(todo)}
+	m := models[model]
+	program := tea.NewProgram(m)
 
 	if _, err := program.Run(); err != nil {
 		fmt.Println(err)

@@ -15,6 +15,13 @@ type Model struct {
 	err      error
 }
 
+var models []tea.Model
+
+const (
+	model status = iota
+	form
+)
+
 func New() *Model {
 	return &Model{}
 }
@@ -40,12 +47,13 @@ func (m *Model) Prev() {
 }
 
 func (m *Model) MoveToNext() tea.Msg {
-	selectedItem := m.lists[m.focused].SelectedItem()
-	selectedTask := selectedItem.(Task)
-	m.lists[selectedTask.status].RemoveItem(m.lists[m.focused].Index())
-	selectedTask.Next()
-	m.lists[selectedTask.status].InsertItem(len(m.lists[selectedTask.status].Items())-1, list.Item(selectedTask))
-
+	if m.lists[m.focused].SelectedItem() != nil {
+		selectedItem := m.lists[m.focused].SelectedItem()
+		selectedTask := selectedItem.(Task)
+		m.lists[selectedTask.status].RemoveItem(m.lists[m.focused].Index())
+		selectedTask.Next()
+		m.lists[selectedTask.status].InsertItem(len(m.lists[selectedTask.status].Items())-1, list.Item(selectedTask))
+	}
 	return nil
 }
 
@@ -144,7 +152,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.Next()
 		case "enter":
 			return m, m.MoveToNext
+		case "n":
+			// NOTE: Save the state of the current model.
+			models[model] = m
+			models[form] = NewForm(m.focused)
+			return models[form].Update(nil)
 		}
+	case Task:
+		task := msg
+		return m, m.lists[task.status].InsertItem(len(m.lists[task.status].Items()), task)
 	}
 
 	var cmd tea.Cmd
