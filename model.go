@@ -7,11 +7,29 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+type status int
+
+const (
+	todo       status = 0
+	completing        = 1
+	done              = 2
+)
+
+type mode int
+
+const (
+	welcome   mode = 0
+	normal         = 1
+	creation       = 2
+	filtering      = 3
+)
+
 type Model struct {
 	lists    []list.Model
 	focused  status
 	loaded   bool
 	shutdown bool
+	mode     mode
 	err      error
 }
 
@@ -23,7 +41,7 @@ const (
 )
 
 func New() *Model {
-	return &Model{}
+	return &Model{mode: normal}
 }
 
 func (m Model) Init() tea.Cmd {
@@ -103,7 +121,7 @@ func (m Model) View() string {
 			}
 		}
 
-		return css.JoinHorizontal(css.Left, cols...)
+		return css.JoinHorizontal(css.Center, cols...)
 	} else {
 		return "Loading..."
 	}
@@ -116,20 +134,20 @@ func (m *Model) CreateLists(width int, height int) {
 	m.lists = []list.Model{d, d, d}
 
 	// Todo list
-	m.lists[todo].Title = "Today's Agenda"
+	m.lists[todo].Title = "       Today's Agenda        "
 	m.lists[todo].SetItems([]list.Item{
 		Task{status: todo, title: "complete c# training", description: "update cs-neetcode repo"},
 		Task{status: todo, title: "lunch", description: "sushi @ 12:00pm"},
 	})
 
 	// Completing list
-	m.lists[completing].Title = "Working On"
+	m.lists[completing].Title = "          Working On          "
 	m.lists[completing].SetItems([]list.Item{
 		Task{status: completing, title: "implement client feedback", description: "substation modeling"},
 	})
 
 	// Done list
-	m.lists[done].Title = "Done"
+	m.lists[done].Title = "             Done             "
 	m.lists[done].SetItems([]list.Item{
 		Task{status: done, title: "meeting @ 9:00am", description: "engineering team stand-up"},
 	})
@@ -147,24 +165,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case tea.KeyMsg:
-		// TODO: Have cases for different modes
-		// i.e. when you are filling out a task, q should not quit
-		switch msg.String() {
-		case "ctrl+c", "q":
-			m.shutdown = true
-			return m, tea.Quit
-		case "left", "h", "shift+tab":
-			m.Prev()
-		case "right", "l", "tab":
-			m.Next()
-		case "enter":
-			m.MoveToNext()
-		case "d":
-			m.DeleteTask()
-		case "n":
-			models[model] = m
-			models[form] = NewForm(m.focused)
-			return models[form].Update(nil)
+		// NORMAL MODE Keybinds
+		if m.mode == normal {
+			switch msg.String() {
+			case "ctrl+c", "q":
+				m.shutdown = true
+				return m, tea.Quit
+			case "left", "h", "shift+tab":
+				m.Prev()
+			case "right", "l", "tab":
+				m.Next()
+			case "enter":
+				m.MoveToNext()
+			case "d":
+				m.DeleteTask()
+			case "?":
+				m.lists[0].ShowHelp()
+			case "n":
+				models[model] = m
+				models[form] = NewForm(m.focused)
+				return models[form].Update(nil)
+			}
 		}
 	case Task:
 		task := msg

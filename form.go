@@ -33,7 +33,7 @@ func (m Form) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "ctrl+c", "q":
+		case "ctrl+c":
 			return m, tea.Quit
 		case "enter":
 			if m.title.Focused() {
@@ -42,7 +42,7 @@ func (m Form) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, textarea.Blink
 			} else {
 				models[form] = m
-				return models[model], m.CreatTask
+				return models[model], m.CreateTask
 			}
 		}
 	}
@@ -55,7 +55,7 @@ func (m Form) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 }
 
-func (m Form) CreatTask() tea.Msg {
+func (m Form) CreateTask() tea.Msg {
 	task := NewTask(m.focused, m.title.Value(), m.description.Value())
 	return task
 }
