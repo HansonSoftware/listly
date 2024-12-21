@@ -2,7 +2,7 @@
 
 Manage your daily tasks right in the terminal.
 
-This kanban board inspired TUI allows you to efficiently organize your TODO list.
+This TUI allows you to efficiently organize your TODO list with vim-like keybinds.
 
 ## TODO:
 
@@ -12,14 +12,17 @@ This kanban board inspired TUI allows you to efficiently organize your TODO list
 - [x] Display TUI
 - [x] Make TUI appealing to look at (thanks charm cli)
 - [ ] Welcome page / session organizer
+- Example: I can have a long list of TODO items in a list called 2025, and I can choose to open that session, or I can just start a new session with todays date
+- [ ] Load new session by default with current date as name
 - [x] Create columns (TODO / In Progress / Done)
-- [ ] Create form (for todos)
-- [ ] Move todos to other columns (when complete or in progress)
+- [x] Create form (for todos)
+- [x] Move todos to other columns (when complete or in progress)
 - [ ] Delete todos
-- [ ] Save todos
-- [ ] Save lists
+- [ ] Save lists / session with keybind Ctrl-S
+- [ ] Saving popup
 - [ ] Choose and connect to a local DB
-- [ ] Store todos in DB
+- [ ] Store sessions in DB
 - [x] Allow tab & shift-tab movement between cols
 - [ ] Implement intuitive keybinds
-- [ ] ? Displays keybind guide (thanks charm cli)
+- [ ] Fix bug where keybinds are registered in filter or new task
+- [ ] ? Displays keybind guide
