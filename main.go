@@ -10,7 +10,7 @@ import (
 func main() {
 	models = []tea.Model{New(), NewForm(todo)}
 	m := models[model]
-	program := tea.NewProgram(m)
+	program := tea.NewProgram(m, tea.WithAltScreen())
 
 	if _, err := program.Run(); err != nil {
 		fmt.Println(err)
