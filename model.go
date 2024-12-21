@@ -53,12 +53,13 @@ func (m *Model) MoveToNext() tea.Msg {
 		m.lists[selectedTask.status].RemoveItem(m.lists[m.focused].Index())
 		selectedTask.Next()
 		m.lists[selectedTask.status].InsertItem(len(m.lists[selectedTask.status].Items())-1, list.Item(selectedTask))
+		return nil
 	}
 	return nil
 }
 
 func (m Model) View() string {
-	// NOTE: Eliminates final std out print, leaving terminal clean.
+	var cols []string
 	if m.shutdown {
 		return ""
 	}
@@ -71,38 +72,35 @@ func (m Model) View() string {
 		switch m.focused {
 
 		case completing:
-			return css.JoinHorizontal(
-				css.Top,
+			cols = []string{
 				columnStyle.Render(todoView),
 				focusedStyle.Render(completingView),
 				columnStyle.Render(doneView),
-			)
+			}
 
 		case done:
-			return css.JoinHorizontal(
-				css.Top,
+			cols = []string{
 				columnStyle.Render(todoView),
 				columnStyle.Render(completingView),
 				focusedStyle.Render(doneView),
-			)
+			}
 
 		default:
-			return css.JoinHorizontal(
-				css.Top,
+			cols = []string{
 				focusedStyle.Render(todoView),
 				columnStyle.Render(completingView),
 				columnStyle.Render(doneView),
-			)
+			}
 		}
 
+		return css.JoinHorizontal(css.Left, cols...)
 	} else {
-		// TODO: Loading spinner
-		return "Loading ..."
+		return "Loading..."
 	}
 }
 
 func (m *Model) CreateLists(width int, height int) {
-	d := list.New([]list.Item{}, list.NewDefaultDelegate(), width/3, height-4)
+	d := list.New([]list.Item{}, list.NewDefaultDelegate(), width/4, height-4*2)
 	d.SetShowHelp(false)
 
 	m.lists = []list.Model{d, d, d}
@@ -128,20 +126,19 @@ func (m *Model) CreateLists(width int, height int) {
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-
 	switch msg := msg.(type) {
 
 	case tea.WindowSizeMsg:
 		if !m.loaded {
-			columnStyle.Width(msg.Width / 3)
-			columnStyle.Height(msg.Height - 4)
-			focusedStyle.Width(msg.Width / 3)
-			focusedStyle.Height(msg.Height - 4)
+			columnStyle.Width(msg.Width)
+			focusedStyle.Width(msg.Width)
 			m.CreateLists(msg.Width, msg.Height)
 			m.loaded = true
 		}
 
 	case tea.KeyMsg:
+		// TODO: Have cases for different modes
+		// i.e. when you are filling out a task, q should not quit
 		switch msg.String() {
 		case "ctrl+c", "q":
 			m.shutdown = true
@@ -151,9 +148,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "right", "l", "tab":
 			m.Next()
 		case "enter":
-			return m, m.MoveToNext
+			m.MoveToNext()
 		case "n":
-			// NOTE: Save the state of the current model.
 			models[model] = m
 			models[form] = NewForm(m.focused)
 			return models[form].Update(nil)
