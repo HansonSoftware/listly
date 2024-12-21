@@ -17,7 +17,7 @@ This TUI allows you to efficiently organize your TODO list with vim-like keybind
 - [x] Create columns (TODO / In Progress / Done)
 - [x] Create form (for todos)
 - [x] Move todos to other columns (when complete or in progress)
-- [ ] Delete todos
+- [x] Delete todos
 - [ ] Save lists / session with keybind Ctrl-S
 - [ ] Saving popup
 - [ ] Choose and connect to a local DB

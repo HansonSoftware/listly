@@ -46,6 +46,16 @@ func (m *Model) Prev() {
 	}
 }
 
+func (m *Model) DeleteTask() tea.Msg {
+	if m.lists[m.focused].SelectedItem() != nil {
+		selectedItem := m.lists[m.focused].SelectedItem()
+		selectedTask := selectedItem.(Task)
+		m.lists[selectedTask.status].RemoveItem(m.lists[m.focused].Index())
+		return nil
+	}
+	return nil
+}
+
 func (m *Model) MoveToNext() tea.Msg {
 	if m.lists[m.focused].SelectedItem() != nil {
 		selectedItem := m.lists[m.focused].SelectedItem()
@@ -149,6 +159,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.Next()
 		case "enter":
 			m.MoveToNext()
+		case "d":
+			m.DeleteTask()
 		case "n":
 			models[model] = m
 			models[form] = NewForm(m.focused)
