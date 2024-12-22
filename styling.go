@@ -11,7 +11,7 @@ var (
 	focusedStyle = css.NewStyle().
 			Padding(1, 2).
 			Border(css.RoundedBorder()).
-			BorderForeground(css.Color("#a6e3a1"))
+			BorderForeground(css.Color("240"))
 	helpStyle = css.NewStyle().
 			Foreground(css.Color("240"))
 )
