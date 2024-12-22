@@ -180,13 +180,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "d":
 				m.DeleteTask()
 			case "?":
-				m.lists[0].ShowHelp()
+				m.lists[0].SetShowHelp(true)
+			case "/":
+				m.mode = filtering
 			case "n":
 				models[model] = m
 				models[form] = NewForm(m.focused)
 				return models[form].Update(nil)
 			}
 		}
+		// FILTERING MODE Keybinds
+		if m.mode == filtering {
+			switch msg.String() {
+			case "esc", "enter":
+				m.mode = normal
+			}
+		}
+
 	case Task:
 		task := msg
 		return m, m.lists[task.status].InsertItem(len(m.lists[task.status].Items()), task)
