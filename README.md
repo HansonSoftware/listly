@@ -21,9 +21,9 @@ This TUI allows you to efficiently organize your TODO list with vim-like keybind
 - [ ] Undo list (with U keybind and a stack)
 - [ ] Save lists / session with keybind Ctrl-S
 - [ ] Saving popup
-- [ ] Choose and connect to a local DB
+- [x] Choose and connect to a local DB
 - [ ] Store sessions in DB
 - [x] Allow tab & shift-tab movement between cols
 - [ ] Implement intuitive keybinds
 - [x] Fix bug where keybinds are registered in filter or new task
-- [ ] ? Displays keybind guide
+- [x] ? Displays keybind guide
