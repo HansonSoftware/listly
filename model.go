@@ -26,6 +26,7 @@ const (
 
 type Model struct {
 	lists    []list.Model
+	undoTree []Task
 	focused  status
 	loaded   bool
 	shutdown bool

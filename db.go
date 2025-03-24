@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -16,13 +17,16 @@ func getDBPath() string {
 		home = os.Getenv("APPDATA")
 	} else {
 		home = os.Getenv("HOME")
+		fmt.Println(home)
 	}
 
-	return filepath.Join(home, ".listly", "listly.db")
+	// Store local DB in ~/.local/share/listly/listly.db
+	return filepath.Join(home, ".local/share/listly", "listly.db")
 }
 
 func initializeDB() (*sql.DB, error) {
 	dbPath := getDBPath()
+	fmt.Println(dbPath)
 	dir := filepath.Dir(dbPath)
 	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
 		return nil, err
@@ -40,7 +44,6 @@ func initializeDB() (*sql.DB, error) {
 			created_at: The timestamp when the list was created.
 	*/
 	createListsTable := `
-		-- Table to store tasks for each list
 		CREATE TABLE IF NOT EXISTS tasks (
 				id INTEGER PRIMARY KEY AUTOINCREMENT,
 				list_id INTEGER NOT NULL,               -- Foreign key to the lists table
