@@ -44,15 +44,12 @@ func initializeDB() (*sql.DB, error) {
 			created_at: The timestamp when the list was created.
 	*/
 	createListsTable := `
-		CREATE TABLE IF NOT EXISTS tasks (
-				id INTEGER PRIMARY KEY AUTOINCREMENT,
-				list_id INTEGER NOT NULL,               -- Foreign key to the lists table
-				status INTEGER NOT NULL,                -- 0: todo, 1: completing, 2: done
-				title TEXT NOT NULL,
-				description TEXT,
-				FOREIGN KEY (list_id) REFERENCES lists(id)
-		);
-	`
+			CREATE TABLE IF NOT EXISTS lists (
+					id INTEGER PRIMARY KEY AUTOINCREMENT,
+					name TEXT NOT NULL,
+					created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+			);
+    `
 
 	_, err = db.Exec(createListsTable)
 	if err != nil {
@@ -68,12 +65,15 @@ func initializeDB() (*sql.DB, error) {
 			description: A description of the task.
 	*/
 	createTasksTable := `
-			CREATE TABLE IF NOT EXISTS lists (
-					id INTEGER PRIMARY KEY AUTOINCREMENT,
-					name TEXT NOT NULL,
-					created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-			);
-    `
+		CREATE TABLE IF NOT EXISTS tasks (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				list_id INTEGER NOT NULL,               -- Foreign key to the lists table
+				status INTEGER NOT NULL,                -- 0: todo, 1: completing, 2: done
+				title TEXT NOT NULL,
+				description TEXT,
+				FOREIGN KEY (list_id) REFERENCES lists(id)
+		);
+	`
 
 	_, err = db.Exec(createTasksTable)
 	if err != nil {
