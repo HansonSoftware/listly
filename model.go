@@ -28,7 +28,7 @@ const (
 
 type Model struct {
 	lists      []list.Model
-	undoStack  []func()
+	undoStack *UndoStack
 	focused    status
 	loaded     bool
 	shutdown   bool
@@ -54,6 +54,7 @@ func New() *Model {
 	return &Model{
 		mode:  welcome,
 		lists: make([]list.Model, 3),
+		undoStack: NewUndoStack(50),
 	}
 }
 
@@ -90,19 +91,13 @@ func (m *Model) Prev() {
 }
 
 func (m *Model) pushUndo(fn func()) {
-	m.undoStack = append(m.undoStack, fn)
-	if len(m.undoStack) > 50 {
-		m.undoStack = m.undoStack[1:]
-	}
+	m.undoStack.Push(fn)
 }
 
 func (m *Model) undo() {
-	if len(m.undoStack) == 0 {
-		return
+	if fn := m.undoStack.Pop(); fn != nil {
+		fn()
 	}
-	fn := m.undoStack[len(m.undoStack)-1]
-	m.undoStack = m.undoStack[:len(m.undoStack)-1]
-	fn()
 }
 
 func (m *Model) DeleteTask() tea.Msg {
@@ -170,17 +165,6 @@ func (m *Model) getAllTasks() []Task {
 	return tasks
 }
 
-func (m *Model) columnLayout() (boardWidth, colTotalWidth, colInternalWidth, colHeight int) {
-	boardWidth = m.width - (m.width % 3)
-	colTotalWidth = (boardWidth / 3) - 2
-	colInternalWidth = colTotalWidth - 6
-	colHeight = m.height - 8
-	if colHeight < 10 {
-		colHeight = 10
-	}
-	return
-}
-
 func (m *Model) recreateLists() {
 	if m.width == 0 || m.height == 0 {
 		return
@@ -188,13 +172,13 @@ func (m *Model) recreateLists() {
 	if len(m.lists) != 3 {
 		m.lists = make([]list.Model, 3)
 	}
-	_, _, colInternalWidth, colHeight := m.columnLayout()
+	layout := ColumnLayout(m.width, m.height)
 
 	delegate := TaskDelegate{}
 
 	for i := range m.lists {
 		items := m.lists[i].Items()
-		m.lists[i] = list.New(items, delegate, colInternalWidth, colHeight)
+		m.lists[i] = list.New(items, delegate, layout.ColInternalWidth, layout.ColHeight)
 		m.lists[i].SetShowHelp(false)
 		m.lists[i].SetShowStatusBar(false)
 		m.lists[i].SetFilteringEnabled(false)
@@ -270,8 +254,7 @@ func (m Model) mainView() string {
 		"Done",
 	}
 
-	_, colTotalWidth, _, _ := m.columnLayout()
-	colContentWidth := colTotalWidth - 8
+	layout := ColumnLayout(m.width, m.height)
 
 	var cols []string
 	for i := 0; i < 3; i++ {
@@ -285,12 +268,12 @@ func (m Model) mainView() string {
 		}
 
 		content := lipgloss.JoinVertical(lipgloss.Left, title, view)
-		content = lipgloss.NewStyle().MaxWidth(colContentWidth).Render(content)
+		content = lipgloss.NewStyle().MaxWidth(layout.ColContentWidth).Render(content)
 
 		if i == int(m.focused) {
-			cols = append(cols, FocusedColumnStyle.Width(colTotalWidth).Render(content))
+			cols = append(cols, FocusedColumnStyle.Width(layout.ColTotalWidth).Render(content))
 		} else {
-			cols = append(cols, ColumnStyle.Width(colTotalWidth).Render(content))
+			cols = append(cols, ColumnStyle.Width(layout.ColTotalWidth).Render(content))
 		}
 	}
 
