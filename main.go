@@ -11,7 +11,7 @@ func main() {
 	fmt.Println("Starting up...")
 	initializeDB()
 
-	models = []tea.Model{New(), NewForm(todo)}
+	models = []tea.Model{New(), NewForm(todo), NewSessionNameForm(nil)}
 	m := models[model]
 	program := tea.NewProgram(m, tea.WithAltScreen())
 	tea.SetWindowTitle("Listly")

@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/charmbracelet/bubbles/list"
-	css "github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/lipgloss"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -22,16 +22,24 @@ const (
 	normal         = 1
 	creation       = 2
 	filtering      = 3
+	saving         = 4
+	help           = 5
 )
 
 type Model struct {
-	lists    []list.Model
-	undoTree []Task
-	focused  status
-	loaded   bool
-	shutdown bool
-	mode     mode
-	err      error
+	lists      []list.Model
+	undoStack  []func()
+	focused    status
+	loaded     bool
+	shutdown   bool
+	mode       mode
+	err        error
+	sessionID  int64
+	isDaily    bool
+	welcomeIdx int
+	sessions   []Session
+	width      int
+	height     int
 }
 
 var models []tea.Model
@@ -39,14 +47,30 @@ var models []tea.Model
 const (
 	model status = iota
 	form
+	sessionForm
 )
 
 func New() *Model {
-	return &Model{mode: normal}
+	return &Model{
+		mode:  welcome,
+		lists: make([]list.Model, 3),
+	}
 }
 
 func (m Model) Init() tea.Cmd {
-	return nil
+	return m.loadSessions
+}
+
+func (m *Model) loadSessions() tea.Msg {
+	sessions, err := ListSessions()
+	if err != nil {
+		return err
+	}
+	return sessionsLoadedMsg{sessions}
+}
+
+type sessionsLoadedMsg struct {
+	sessions []Session
 }
 
 func (m *Model) Next() {
@@ -65,11 +89,37 @@ func (m *Model) Prev() {
 	}
 }
 
+func (m *Model) pushUndo(fn func()) {
+	m.undoStack = append(m.undoStack, fn)
+	if len(m.undoStack) > 50 {
+		m.undoStack = m.undoStack[1:]
+	}
+}
+
+func (m *Model) undo() {
+	if len(m.undoStack) == 0 {
+		return
+	}
+	fn := m.undoStack[len(m.undoStack)-1]
+	m.undoStack = m.undoStack[:len(m.undoStack)-1]
+	fn()
+}
+
 func (m *Model) DeleteTask() tea.Msg {
 	if m.lists[m.focused].SelectedItem() != nil {
 		selectedItem := m.lists[m.focused].SelectedItem()
 		selectedTask := selectedItem.(Task)
-		m.lists[selectedTask.status].RemoveItem(m.lists[m.focused].Index())
+		idx := m.lists[m.focused].Index()
+		m.lists[selectedTask.status].RemoveItem(idx)
+		m.pushUndo(func() {
+			m.lists[selectedTask.status].InsertItem(idx, selectedItem)
+			if !m.isDaily {
+				m.autoSave()
+			}
+		})
+		if !m.isDaily {
+			m.autoSave()
+		}
 		return nil
 	}
 	return nil
@@ -79,95 +129,292 @@ func (m *Model) MoveToNext() tea.Msg {
 	if m.lists[m.focused].SelectedItem() != nil {
 		selectedItem := m.lists[m.focused].SelectedItem()
 		selectedTask := selectedItem.(Task)
-		m.lists[selectedTask.status].RemoveItem(m.lists[m.focused].Index())
+		idx := m.lists[m.focused].Index()
+		m.lists[selectedTask.status].RemoveItem(idx)
 		selectedTask.Next()
-		m.lists[selectedTask.status].InsertItem(len(m.lists[selectedTask.status].Items())-1, list.Item(selectedTask))
+		newIdx := len(m.lists[selectedTask.status].Items())
+		m.lists[selectedTask.status].InsertItem(newIdx, list.Item(selectedTask))
+		m.pushUndo(func() {
+			m.lists[selectedTask.status].RemoveItem(newIdx)
+			selectedTask.Next()
+			selectedTask.Next()
+			selectedTask.Next()
+			m.lists[selectedTask.status].InsertItem(idx, list.Item(selectedTask))
+			if !m.isDaily {
+				m.autoSave()
+			}
+		})
+		if !m.isDaily {
+			m.autoSave()
+		}
 		return nil
 	}
 	return nil
 }
 
+func (m *Model) autoSave() {
+	if m.sessionID == 0 {
+		return
+	}
+	tasks := m.getAllTasks()
+	SaveSession(m.sessionID, tasks)
+}
+
+func (m *Model) getAllTasks() []Task {
+	var tasks []Task
+	for _, l := range m.lists {
+		for _, item := range l.Items() {
+			tasks = append(tasks, item.(Task))
+		}
+	}
+	return tasks
+}
+
+func (m *Model) columnLayout() (boardWidth, colTotalWidth, colInternalWidth, colHeight int) {
+	boardWidth = m.width - (m.width % 3)
+	colTotalWidth = (boardWidth / 3) - 2
+	colInternalWidth = colTotalWidth - 6
+	colHeight = m.height - 8
+	if colHeight < 10 {
+		colHeight = 10
+	}
+	return
+}
+
+func (m *Model) recreateLists() {
+	if m.width == 0 || m.height == 0 {
+		return
+	}
+	if len(m.lists) != 3 {
+		m.lists = make([]list.Model, 3)
+	}
+	_, _, colInternalWidth, colHeight := m.columnLayout()
+
+	delegate := TaskDelegate{}
+
+	for i := range m.lists {
+		items := m.lists[i].Items()
+		m.lists[i] = list.New(items, delegate, colInternalWidth, colHeight)
+		m.lists[i].SetShowHelp(false)
+		m.lists[i].SetShowStatusBar(false)
+		m.lists[i].SetFilteringEnabled(false)
+		m.lists[i].Title = ""
+	}
+}
+
 func (m Model) View() string {
-	var cols []string
+	switch m.mode {
+	case welcome:
+		return m.welcomeView()
+	case saving:
+		return models[sessionForm].View()
+	case help:
+		return m.helpView()
+	case normal, creation, filtering:
+		return m.mainView()
+	}
+	return ""
+}
+
+func (m Model) welcomeView() string {
+	if len(m.sessions) == 0 {
+		content := lipgloss.JoinVertical(lipgloss.Center,
+			WelcomeTitleStyle.Render("Welcome to Listly"),
+			WelcomeSubtitleStyle.Render("No sessions yet. Create one to get started."),
+			"",
+			WelcomeHelpStyle.Render("[n] New session    [d] Daily session    [q] Quit"),
+		)
+		return CenterIn(m.width, m.height, content)
+	}
+
+	var lines []string
+	lines = append(lines, WelcomeTitleStyle.Render("Welcome to Listly"))
+	lines = append(lines, WelcomeSubtitleStyle.Render("Select a session to continue"))
+	lines = append(lines, "")
+
+	for i, s := range m.sessions {
+		var line string
+		dailyMark := ""
+		if s.IsDaily {
+			dailyMark = DailySessionBadge.Render("(daily)")
+		}
+		name := s.Name + dailyMark
+
+		if i == m.welcomeIdx {
+			line = SelectedSessionStyle.Render("▸ " + name)
+		} else {
+			line = SessionItemStyle.Render("  " + name)
+		}
+		lines = append(lines, line)
+	}
+
+	lines = append(lines, "")
+	lines = append(lines, WelcomeHelpStyle.Render("[↑/↓] Navigate  [enter] Open  [n] New  [d] Daily  [q] Quit"))
+
+	content := lipgloss.JoinVertical(lipgloss.Left, lines...)
+	return CenterIn(m.width, m.height, content)
+}
+
+func (m Model) mainView() string {
 	if m.shutdown {
 		return ""
 	}
 
-	if m.loaded {
-		todoView := m.lists[todo].View()
-		completingView := m.lists[completing].View()
-		doneView := m.lists[done].View()
+	if !m.loaded {
+		return CenterIn(m.width, m.height, "Loading...")
+	}
 
-		switch m.focused {
+	titles := []string{
+		"Today's Agenda",
+		"Working On",
+		"Done",
+	}
 
-		case completing:
-			cols = []string{
-				columnStyle.Render(todoView),
-				focusedStyle.Render(completingView),
-				columnStyle.Render(doneView),
-			}
+	_, colTotalWidth, _, _ := m.columnLayout()
+	colContentWidth := colTotalWidth - 8
 
-		case done:
-			cols = []string{
-				columnStyle.Render(todoView),
-				columnStyle.Render(completingView),
-				focusedStyle.Render(doneView),
-			}
+	var cols []string
+	for i := 0; i < 3; i++ {
+		view := m.lists[i].View()
 
-		default:
-			cols = []string{
-				focusedStyle.Render(todoView),
-				columnStyle.Render(completingView),
-				columnStyle.Render(doneView),
-			}
+		title := titles[i]
+		if i == int(m.focused) {
+			title = FocusedColumnTitleStyle.Render("▸ " + title)
+		} else {
+			title = ColumnTitleStyle.Render("  " + title)
 		}
 
-		return css.JoinHorizontal(css.Center, cols...)
-	} else {
-		return "Loading..."
+		content := lipgloss.JoinVertical(lipgloss.Left, title, view)
+		content = lipgloss.NewStyle().MaxWidth(colContentWidth).Render(content)
+
+		if i == int(m.focused) {
+			cols = append(cols, FocusedColumnStyle.Width(colTotalWidth).Render(content))
+		} else {
+			cols = append(cols, ColumnStyle.Width(colTotalWidth).Render(content))
+		}
+	}
+
+	board := lipgloss.JoinHorizontal(lipgloss.Top, cols...)
+
+	board = lipgloss.NewStyle().MarginTop(1).Render(board)
+
+	help := HelpStyle.Width(m.width).Render("←/→/Tab: switch columns  •  Enter: move task  •  n: new  •  d: delete  •  u: undo  •  Ctrl+s: save  •  /: filter  •  ?: help  •  q: quit")
+
+	return lipgloss.JoinVertical(lipgloss.Left, board, help)
+}
+
+func (m Model) helpView() string {
+	keybinds := []struct {
+		key  string
+		desc string
+	}{
+		{"h / ← / Shift+Tab", "Previous column"},
+		{"l / → / Tab", "Next column"},
+		{"Enter", "Move task to next column"},
+		{"d", "Delete selected task"},
+		{"n", "New task"},
+		{"u", "Undo last action"},
+		{"Ctrl+s", "Save session"},
+		{"/", "Filter mode"},
+		{"?", "Show this help"},
+		{"q / Ctrl+c", "Quit"},
+	}
+
+	var lines []string
+	lines = append(lines, CardTitleStyle.Render("Keybinds"))
+	lines = append(lines, "")
+	for _, kb := range keybinds {
+		key := HelpKeybindStyle.Render(kb.key)
+		desc := HelpDescStyle.Render(kb.desc)
+		lines = append(lines, lipgloss.JoinHorizontal(lipgloss.Left, key, "  ", desc))
+	}
+	lines = append(lines, "")
+	lines = append(lines, HelpStyle.Render("Press ? or Esc to close"))
+
+	content := lipgloss.JoinVertical(lipgloss.Left, lines...)
+	card := CardStyle.Render(content)
+	return CenterIn(m.width, m.height, card)
+}
+
+func (m *Model) loadSessionTasks(sessionID int64) {
+	tasks, err := LoadSession(sessionID)
+	if err != nil {
+		m.err = err
+		return
+	}
+	for _, task := range tasks {
+		m.lists[task.status].InsertItem(len(m.lists[task.status].Items()), task)
 	}
 }
 
-func (m *Model) CreateLists(width int, height int) {
-	d := list.New([]list.Item{}, list.NewDefaultDelegate(), width/4, height-4*2)
-	d.SetShowHelp(false)
-
-	m.lists = []list.Model{d, d, d}
-
-	// Todo list
-	m.lists[todo].Title = "       Today's Agenda        "
-	m.lists[todo].SetItems([]list.Item{
-		Task{status: todo, title: "complete c# training", description: "update cs-neetcode repo"},
-		Task{status: todo, title: "lunch", description: "sushi @ 12:00pm"},
-	})
-
-	// Completing list
-	m.lists[completing].Title = "          Working On          "
-	m.lists[completing].SetItems([]list.Item{
-		Task{status: completing, title: "implement client feedback", description: "substation modeling"},
-	})
-
-	// Done list
-	m.lists[done].Title = "             Done             "
-	m.lists[done].SetItems([]list.Item{
-		Task{status: done, title: "meeting @ 9:00am", description: "engineering team stand-up"},
-	})
-}
-
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
+	var cmds []tea.Cmd
 
+	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
 		if !m.loaded {
-			columnStyle.Width(msg.Width)
-			focusedStyle.Width(msg.Width)
-			m.CreateLists(msg.Width, msg.Height)
+			m.recreateLists()
 			m.loaded = true
+		} else {
+			m.recreateLists()
 		}
 
+	case sessionsLoadedMsg:
+		m.sessions = msg.sessions
+		m.welcomeIdx = 0
+
 	case tea.KeyMsg:
-		// NORMAL MODE Keybinds
-		if m.mode == normal {
+		switch m.mode {
+		case welcome:
+			switch msg.String() {
+			case "ctrl+c", "q":
+				m.shutdown = true
+				return m, tea.Quit
+			case "up", "k":
+				if m.welcomeIdx > 0 {
+					m.welcomeIdx--
+				}
+			case "down", "j":
+				if m.welcomeIdx < len(m.sessions)-1 {
+					m.welcomeIdx++
+				}
+			case "enter":
+				if len(m.sessions) > 0 {
+					s := m.sessions[m.welcomeIdx]
+					m.sessionID = s.ID
+					m.isDaily = s.IsDaily
+					m.mode = normal
+					m.loadSessionTasks(s.ID)
+				}
+			case "n":
+				m.mode = saving
+				models[sessionForm] = NewSessionNameForm(func(name string) (tea.Model, tea.Cmd) {
+					id, err := CreateSession(name)
+					if err != nil {
+						m.err = err
+						return m, nil
+					}
+					m.sessionID = id
+					m.isDaily = false
+					m.mode = normal
+					return m, nil
+				})
+				return models[sessionForm], nil
+			case "d":
+				id, err := GetDailySession()
+				if err != nil {
+					m.err = err
+					return m, nil
+				}
+				m.sessionID = id
+				m.isDaily = true
+				m.mode = normal
+				m.loadSessionTasks(id)
+			}
+
+		case normal:
 			switch msg.String() {
 			case "ctrl+c", "q":
 				m.shutdown = true
@@ -181,30 +428,82 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "d":
 				m.DeleteTask()
 			case "?":
-				m.lists[0].SetShowHelp(true)
+				m.mode = help
 			case "/":
 				m.mode = filtering
 			case "n":
 				models[model] = m
-				models[form] = NewForm(m.focused)
-				return models[form].Update(nil)
+				f := NewForm(m.focused)
+				f.width = m.width
+				f.height = m.height
+				models[form] = f
+				return models[form], nil
+			case "u":
+				m.undo()
+				if !m.isDaily {
+					m.autoSave()
+				}
+			case "ctrl+s":
+				m.mode = saving
+				models[sessionForm] = NewSessionNameForm(func(name string) (tea.Model, tea.Cmd) {
+					if m.sessionID == 0 {
+						id, err := CreateSession(name)
+						if err != nil {
+							m.err = err
+							return m, nil
+						}
+						m.sessionID = id
+					} else {
+						// Update existing session name
+						err := UpdateSessionName(m.sessionID, name)
+						if err != nil {
+							m.err = err
+							return m, nil
+						}
+					}
+					m.isDaily = false
+					m.mode = normal
+					m.autoSave()
+					return m, nil
+				})
+				return models[sessionForm], nil
 			}
-		}
-		// FILTERING MODE Keybinds
-		if m.mode == filtering {
+
+		case filtering:
 			switch msg.String() {
 			case "esc", "enter":
 				m.mode = normal
+			}
+
+		case help:
+			switch msg.String() {
+			case "?", "esc", "enter":
+				m.mode = normal
+				return m, nil
+			case "ctrl+c", "q":
+				m.shutdown = true
+				return m, tea.Quit
 			}
 		}
 
 	case Task:
 		task := msg
+		m.pushUndo(func() {
+			items := m.lists[task.status].Items()
+			if len(items) > 0 {
+				m.lists[task.status].RemoveItem(len(items) - 1)
+			}
+			if !m.isDaily {
+				m.autoSave()
+			}
+		})
 		return m, m.lists[task.status].InsertItem(len(m.lists[task.status].Items()), task)
 	}
 
+	// Update focused list
 	var cmd tea.Cmd
 	m.lists[m.focused], cmd = m.lists[m.focused].Update(msg)
+	cmds = append(cmds, cmd)
 
-	return m, cmd
+	return m, tea.Batch(cmds...)
 }
