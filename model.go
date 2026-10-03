@@ -40,6 +40,7 @@ type Model struct {
 	sessions   []Session
 	width      int
 	height     int
+	store      Store
 }
 
 var models []tea.Model
@@ -50,11 +51,12 @@ const (
 	sessionForm
 )
 
-func New() *Model {
+func New(store Store) *Model {
 	return &Model{
 		mode:  welcome,
 		lists: make([]list.Model, 3),
 		undoStack: NewUndoStack(50),
+		store: store,
 	}
 }
 
@@ -63,7 +65,7 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m *Model) loadSessions() tea.Msg {
-	sessions, err := ListSessions()
+	sessions, err := m.store.ListSessions()
 	if err != nil {
 		return err
 	}
@@ -152,7 +154,7 @@ func (m *Model) autoSave() {
 		return
 	}
 	tasks := m.getAllTasks()
-	SaveSession(m.sessionID, tasks)
+	m.store.SaveSession(m.sessionID, tasks)
 }
 
 func (m *Model) getAllTasks() []Task {
@@ -320,7 +322,7 @@ func (m Model) helpView() string {
 }
 
 func (m *Model) loadSessionTasks(sessionID int64) {
-	tasks, err := LoadSession(sessionID)
+	tasks, err := m.store.LoadSession(sessionID)
 	if err != nil {
 		m.err = err
 		return
@@ -374,7 +376,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "n":
 				m.mode = saving
 				models[sessionForm] = NewSessionNameForm(func(name string) (tea.Model, tea.Cmd) {
-					id, err := CreateSession(name)
+					id, err := m.store.CreateSession(name)
 					if err != nil {
 						m.err = err
 						return m, nil
@@ -386,7 +388,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				})
 				return models[sessionForm], nil
 			case "d":
-				id, err := GetDailySession()
+				id, err := m.store.GetDailySession()
 				if err != nil {
 					m.err = err
 					return m, nil
@@ -430,7 +432,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.mode = saving
 				models[sessionForm] = NewSessionNameForm(func(name string) (tea.Model, tea.Cmd) {
 					if m.sessionID == 0 {
-						id, err := CreateSession(name)
+						id, err := m.store.CreateSession(name)
 						if err != nil {
 							m.err = err
 							return m, nil
@@ -438,7 +440,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.sessionID = id
 					} else {
 						// Update existing session name
-						err := UpdateSessionName(m.sessionID, name)
+						err := m.store.UpdateSessionName(m.sessionID, name)
 						if err != nil {
 							m.err = err
 							return m, nil

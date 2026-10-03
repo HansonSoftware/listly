@@ -9,9 +9,14 @@ import (
 
 func main() {
 	fmt.Println("Starting up...")
-	initializeDB()
 
-	models = []tea.Model{New(), NewForm(todo), NewSessionNameForm(nil)}
+	store, err := NewStore()
+	if err != nil {
+		fmt.Println("Failed to initialize database:", err)
+		os.Exit(1)
+	}
+
+	models = []tea.Model{New(store), NewForm(todo), NewSessionNameForm(nil)}
 	m := models[model]
 	program := tea.NewProgram(m, tea.WithAltScreen())
 	tea.SetWindowTitle("Listly")
