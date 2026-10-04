@@ -35,6 +35,30 @@ type failStore struct {
 
 func (f failStore) SaveSession(int64, []Task) error { return f.err }
 
+func TestDailySession_AutoSaves(t *testing.T) {
+	store, err := NewStoreWithPath(":memory:")
+	if err != nil {
+		t.Fatalf("NewStoreWithPath failed: %v", err)
+	}
+	defer store.Close()
+	id, _ := store.GetDailySession()
+
+	m := newTestModel(NewTask(todo, "Daily task", ""))
+	m.isDaily = true
+	m.sessionID = id
+	m.store = store
+
+	m.MoveToNext()
+
+	loaded, err := store.LoadSession(id)
+	if err != nil {
+		t.Fatalf("LoadSession failed: %v", err)
+	}
+	if len(loaded) != 1 || loaded[0].Status() != completing {
+		t.Fatalf("daily session did not autosave, got %v", loaded)
+	}
+}
+
 func TestAutoSave_SurfacesErrors(t *testing.T) {
 	store, err := NewStoreWithPath(":memory:")
 	if err != nil {

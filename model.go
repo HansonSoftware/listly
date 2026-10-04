@@ -112,13 +112,9 @@ func (m *Model) DeleteTask() tea.Msg {
 		m.pushUndo(func() {
 			m.lists[task.status].InsertItem(idx, item)
 			m.lists[task.status].Select(idx)
-			if !m.isDaily {
 				m.autoSave()
-			}
 		})
-		if !m.isDaily {
 			m.autoSave()
-		}
 		return nil
 	}
 	return nil
@@ -138,13 +134,9 @@ func (m *Model) MoveToNext() tea.Msg {
 			m.lists[after.status].RemoveItem(newIdx)
 			m.lists[before.status].InsertItem(idx, list.Item(before))
 			m.lists[before.status].Select(idx)
-			if !m.isDaily {
 				m.autoSave()
-			}
 		})
-		if !m.isDaily {
 			m.autoSave()
-		}
 		return nil
 	}
 	return nil
@@ -433,9 +425,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return models[form], nil
 			case "u":
 				m.undo()
-				if !m.isDaily {
 					m.autoSave()
-				}
 			case "ctrl+s":
 				m.mode = saving
 				models[sessionForm] = NewSessionNameForm(func(name string) (tea.Model, tea.Cmd) {
@@ -454,7 +444,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							return m, nil
 						}
 					}
-					m.isDaily = false
 					m.mode = normal
 					m.autoSave()
 					return m, nil
@@ -489,9 +478,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.lists[task.status].RemoveItem(idx)
 				}
 			}
-			if !m.isDaily {
 				m.autoSave()
-			}
 		})
 		return m, m.lists[task.status].InsertItem(idx, task)
 	}
