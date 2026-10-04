@@ -38,8 +38,8 @@ type Model struct {
 	sessionName string
 	isDaily     bool
 	toast       *Toast
-	welcomeIdx  int
 	sessions    []Session
+	sessionsList list.Model
 	confirm     *ConfirmDialog
 	width       int
 	height      int
@@ -57,10 +57,11 @@ func New(store Store) *Model {
 		lists[i] = list.New(nil, TaskDelegate{}, 40, 20)
 	}
 	return &Model{
-		mode:      welcome,
-		lists:     lists,
-		undoStack: NewUndoStack(50),
-		store:     store,
+		mode:         welcome,
+		lists:        lists,
+		sessionsList: list.New(nil, list.NewDefaultDelegate(), 44, 8),
+		undoStack:    NewUndoStack(50),
+		store:        store,
 	}
 }
 
@@ -256,25 +257,9 @@ func (m Model) welcomeView() string {
 	lines = append(lines, WelcomeTitleStyle.Render("Welcome to Listly"))
 	lines = append(lines, WelcomeSubtitleStyle.Render("Select a session to continue"))
 	lines = append(lines, "")
-
-	for i, s := range m.sessions {
-		var line string
-		dailyMark := ""
-		if s.IsDaily {
-			dailyMark = DailySessionBadge.Render("(daily)")
-		}
-		name := s.Name + dailyMark
-
-		if i == m.welcomeIdx {
-			line = SelectedSessionStyle.Render("▸ " + name)
-		} else {
-			line = SessionItemStyle.Render("  " + name)
-		}
-		lines = append(lines, line)
-	}
-
+	lines = append(lines, m.sessionsList.View())
 	lines = append(lines, "")
-	lines = append(lines, WelcomeHelpStyle.Render("[↑/↓] Navigate  [enter] Open  [n] New  [d] Daily  [r] Rename  [x] Delete  [q] Quit"))
+	lines = append(lines, WelcomeHelpStyle.Render("[↑/↓] Navigate  [enter] Select  [n] New  [d] Daily  [r] Rename  [x] Delete  [q] Quit"))
 
 	content := lipgloss.JoinVertical(lipgloss.Left, lines...)
 	if m.err != nil {
@@ -391,6 +376,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		m.recreateLists()
 		m.loaded = true
+		w := m.width / 2
+		if w < 20 {
+			w = 20
+		}
+		h := m.height - 16
+		if h < 3 {
+			h = 3
+		}
+		m.sessionsList.SetSize(w, h)
 		if m.form != nil && m.mode == creation {
 			m.form.width = msg.Width
 			m.form.height = msg.Height
@@ -406,7 +400,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case sessionsLoadedMsg:
 		m.sessions = msg.sessions
-		m.welcomeIdx = 0
+		items := make([]list.Item, 0, len(msg.sessions))
+		for _, s := range msg.sessions {
+			items = append(items, s)
+		}
+		m.sessionsList.SetItems(items)
+		m.sessionsList.Select(0)
 
 	case toastMsg:
 		m.toast = nil
@@ -425,27 +424,29 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.sessionForm.Update(msg)
 			}
 		case welcome:
+			// Route list navigation to the sessions list for all keys we
+			// don't handle ourselves.
 			switch msg.String() {
 			case "ctrl+c", "q":
 				m.shutdown = true
 				return m, tea.Quit
-			case "up", "k":
-				if m.welcomeIdx > 0 {
-					m.welcomeIdx--
-				}
-			case "down", "j":
-				if m.welcomeIdx < len(m.sessions)-1 {
-					m.welcomeIdx++
-				}
 			case "enter":
 				if len(m.sessions) > 0 {
-					s := m.sessions[m.welcomeIdx]
+					s := m.sessions[m.sessionsList.Index()]
 					m.sessionID = s.ID
 					m.sessionName = s.Name
 					m.isDaily = s.IsDaily
 					m.mode = normal
 					m.loadSessionTasks(s.ID)
 				}
+				return m, nil
+			case "n", "d", "r", "x":
+			default:
+				var cmd tea.Cmd
+				m.sessionsList, cmd = m.sessionsList.Update(msg)
+				return m, cmd
+			}
+			switch msg.String() {
 			case "n":
 				m.returnMode = welcome
 				m.mode = saving
@@ -478,7 +479,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.loadSessionTasks(id)
 			case "r":
 				if len(m.sessions) > 0 {
-					s := m.sessions[m.welcomeIdx]
+					s := m.sessions[m.sessionsList.Index()]
 					m.returnMode = welcome
 					m.mode = saving
 					m.sessionForm = NewSessionNameForm("Rename Session",
@@ -502,7 +503,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			case "x":
 				if len(m.sessions) > 0 {
-					s := m.sessions[m.welcomeIdx]
+					s := m.sessions[m.sessionsList.Index()]
 					m.confirm = NewConfirmDialog(
 						"Delete session '"+s.Name+"'?",
 						func() tea.Cmd {
@@ -511,8 +512,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 								m.err = err
 								return nil
 							}
-							if m.welcomeIdx > 0 && m.welcomeIdx >= len(m.sessions)-1 {
-								m.welcomeIdx--
+							if m.sessionsList.Index() > 0 && m.sessionsList.Index() >= len(m.sessions)-1 {
+								m.sessionsList.Select(m.sessionsList.Index() - 1)
 							}
 							return m.loadSessions
 						},

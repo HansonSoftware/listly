@@ -11,10 +11,11 @@ import (
 
 func newTestModel(tasks ...Task) *Model {
 	m := &Model{
-		focused:   todo,
-		isDaily:   true, // skip store persistence in tests
-		undoStack: NewUndoStack(50),
-		lists:     make([]list.Model, 3),
+		focused:      todo,
+		isDaily:      true, // skip store persistence in tests
+		undoStack:    NewUndoStack(50),
+		lists:        make([]list.Model, 3),
+		sessionsList: list.New(nil, list.NewDefaultDelegate(), 44, 8),
 	}
 	delegate := TaskDelegate{}
 	for i := range m.lists {
