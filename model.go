@@ -27,23 +27,24 @@ const (
 )
 
 type Model struct {
-	lists      []list.Model
-	undoStack *UndoStack
-	focused    status
-	loaded     bool
-	shutdown   bool
-	mode       mode
-	err        error
-	sessionID  int64
-	isDaily    bool
-	welcomeIdx int
-	sessions   []Session
-	width      int
-	height     int
-	store      Store
-	form       *Form
-	sessionForm *SessionNameForm
-	returnMode mode
+	lists         []list.Model
+	undoStack     *UndoStack
+	focused       status
+	loaded        bool
+	shutdown      bool
+	mode          mode
+	err           error
+	sessionID     int64
+	isDaily       bool
+	welcomeIdx    int
+	sessions      []Session
+	confirmDelete bool
+	width         int
+	height        int
+	store         Store
+	form          *Form
+	sessionForm   *SessionNameForm
+	returnMode    mode
 }
 
 func New(store Store) *Model {
@@ -113,9 +114,9 @@ func (m *Model) DeleteTask() tea.Msg {
 		m.pushUndo(func() {
 			m.lists[task.status].InsertItem(idx, item)
 			m.lists[task.status].Select(idx)
-				m.autoSave()
-		})
 			m.autoSave()
+		})
+		m.autoSave()
 		return nil
 	}
 	return nil
@@ -135,9 +136,9 @@ func (m *Model) MoveToNext() tea.Msg {
 			m.lists[after.status].RemoveItem(newIdx)
 			m.lists[before.status].InsertItem(idx, list.Item(before))
 			m.lists[before.status].Select(idx)
-				m.autoSave()
-		})
 			m.autoSave()
+		})
+		m.autoSave()
 		return nil
 	}
 	return nil
@@ -177,7 +178,7 @@ func (m *Model) recreateLists() {
 		m.lists[i] = list.New(items, delegate, layout.ColInternalWidth, layout.ColHeight)
 		m.lists[i].SetShowHelp(false)
 		m.lists[i].SetShowStatusBar(false)
-		m.lists[i].SetFilteringEnabled(false)
+		m.lists[i].SetFilteringEnabled(true)
 		m.lists[i].Title = ""
 	}
 }
@@ -253,7 +254,11 @@ func (m Model) welcomeView() string {
 	}
 
 	lines = append(lines, "")
-	lines = append(lines, WelcomeHelpStyle.Render("[↑/↓] Navigate  [enter] Open  [n] New  [d] Daily  [q] Quit"))
+	if m.confirmDelete && len(m.sessions) > 0 {
+		lines = append(lines, lipgloss.NewStyle().Foreground(ColorError).Render("Delete '"+m.sessions[m.welcomeIdx].Name+"'? Press x again to confirm, any other key to cancel"))
+	} else {
+		lines = append(lines, WelcomeHelpStyle.Render("[↑/↓] Navigate  [enter] Open  [n] New  [d] Daily  [x] Delete  [q] Quit"))
+	}
 
 	content := lipgloss.JoinVertical(lipgloss.Left, lines...)
 	if m.err != nil {
@@ -390,6 +395,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.sessionForm.Update(msg)
 			}
 		case welcome:
+			if msg.String() != "x" {
+				m.confirmDelete = false
+			}
 			switch msg.String() {
 			case "ctrl+c", "q":
 				m.shutdown = true
@@ -437,6 +445,23 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.isDaily = true
 				m.mode = normal
 				m.loadSessionTasks(id)
+			case "x":
+				if m.confirmDelete && len(m.sessions) > 0 {
+					s := m.sessions[m.welcomeIdx]
+					if err := m.store.DeleteSession(s.ID); err != nil {
+						m.err = err
+						m.confirmDelete = false
+						return m, nil
+					}
+					m.confirmDelete = false
+					if m.welcomeIdx > 0 && m.welcomeIdx >= len(m.sessions)-1 {
+						m.welcomeIdx--
+					}
+					return m, m.loadSessions
+				}
+				if len(m.sessions) > 0 {
+					m.confirmDelete = true
+				}
 			}
 
 		case normal:
@@ -456,6 +481,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.mode = help
 			case "/":
 				m.mode = filtering
+				m.lists[m.focused].SetFilterState(list.Filtering)
 			case "n":
 				f := NewForm(m.focused)
 				f.width = m.width
@@ -466,7 +492,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.form.Init()
 			case "u":
 				m.undo()
-					m.autoSave()
+				m.autoSave()
 			case "ctrl+s":
 				m.returnMode = normal
 				m.mode = saving
@@ -496,10 +522,18 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case filtering:
-			switch msg.String() {
-			case "esc", "enter":
+			if msg.String() == "esc" || msg.String() == "enter" {
+				// Let the list see the key so it can apply or cancel the
+				// filter, then return to normal mode.
+				m.lists[m.focused], _ = m.lists[m.focused].Update(msg)
+				m.mode = normal
+				return m, nil
+			}
+			m.lists[m.focused], _ = m.lists[m.focused].Update(msg)
+			if m.lists[m.focused].FilterState() != list.Filtering {
 				m.mode = normal
 			}
+			return m, nil
 
 		case help:
 			switch msg.String() {
@@ -522,7 +556,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.lists[task.status].RemoveItem(idx)
 				}
 			}
-				m.autoSave()
+			m.autoSave()
 		})
 		if m.mode == creation {
 			m.mode = normal

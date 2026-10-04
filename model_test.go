@@ -131,6 +131,62 @@ func TestCreationMode_EscReturnsToNormal(t *testing.T) {
 	}
 }
 
+func TestWelcomeMode_DeleteSessionConfirm(t *testing.T) {
+	store, err := NewStoreWithPath(":memory:")
+	if err != nil {
+		t.Fatalf("NewStoreWithPath failed: %v", err)
+	}
+	defer store.Close()
+	idA, _ := store.CreateSession("A")
+	idB, _ := store.CreateSession("B")
+
+	m := New(store)
+	m.Update(sessionsLoadedMsg{[]Session{{ID: idA, Name: "A"}, {ID: idB, Name: "B"}}})
+
+	// First x arms the confirmation; nothing deleted yet.
+	m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
+	if !m.confirmDelete {
+		t.Fatal("expected confirmDelete after first x")
+	}
+	if n := sessionCount(t, store); n != 2 {
+		t.Fatalf("expected 2 sessions, got %d", n)
+	}
+
+	// A different key cancels the confirmation.
+	m.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
+	if m.confirmDelete {
+		t.Fatal("expected confirmDelete cleared by other key")
+	}
+
+	// Arm again, then confirm deletes the selected session and reloads.
+	m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
+	updated, cmd := m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
+	u := updated.(*Model)
+	if u.confirmDelete {
+		t.Fatal("expected confirmDelete cleared after confirm")
+	}
+	if n := sessionCount(t, store); n != 1 {
+		t.Fatalf("expected 1 session after delete, got %d", n)
+	}
+	if cmd == nil {
+		t.Fatal("expected reload cmd after delete")
+	}
+	msg := cmd()
+	m.Update(msg)
+	if len(m.sessions) != 1 {
+		t.Fatalf("expected sessions reloaded to 1, got %d", len(m.sessions))
+	}
+}
+
+func sessionCount(t *testing.T, s Store) int {
+	t.Helper()
+	sessions, err := s.ListSessions()
+	if err != nil {
+		t.Fatalf("ListSessions failed: %v", err)
+	}
+	return len(sessions)
+}
+
 func TestDailySession_AutoSaves(t *testing.T) {
 	store, err := NewStoreWithPath(":memory:")
 	if err != nil {
