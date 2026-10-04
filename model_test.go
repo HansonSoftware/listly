@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/charmbracelet/bubbles/list"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/list"
+	tea "charm.land/bubbletea/v2"
 )
 
 func newTestModel(tasks ...Task) *Model {
@@ -46,7 +46,7 @@ func TestWelcomeMode_EnterOpensSession(t *testing.T) {
 	m.store = store
 	m.sessions = []Session{{ID: 1, Name: "S", IsDaily: false}}
 
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	got := updated.(Model)
 
 	if got.mode != normal {

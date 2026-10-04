@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 func main() {
@@ -18,8 +18,7 @@ func main() {
 
 	models = []tea.Model{New(store), NewForm(todo), NewSessionNameForm(nil)}
 	m := models[model]
-	program := tea.NewProgram(m, tea.WithAltScreen())
-	tea.SetWindowTitle("Listly")
+	program := tea.NewProgram(m)
 
 	if _, err := program.Run(); err != nil {
 		fmt.Println(err)

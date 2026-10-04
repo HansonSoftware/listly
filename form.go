@@ -1,11 +1,11 @@
 package main
 
 import (
-	"github.com/charmbracelet/bubbles/textarea"
-	"github.com/charmbracelet/bubbles/textinput"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/textarea"
+	"charm.land/bubbles/v2/textinput"
+	"charm.land/lipgloss/v2"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 type Form struct {
@@ -23,19 +23,23 @@ func NewForm(focused status) *Form {
 	form.title.Focus()
 	form.title.CharLimit = 80
 	form.title.Prompt = ""
-	form.title.TextStyle = lipgloss.NewStyle().Foreground(ColorFg)
-	form.title.PlaceholderStyle = lipgloss.NewStyle().Foreground(ColorMuted)
+	tStyles := textinput.DefaultStyles(true)
+	tStyles.Focused.Text = lipgloss.NewStyle().Foreground(ColorFg)
+	tStyles.Focused.Placeholder = lipgloss.NewStyle().Foreground(ColorMuted)
+	form.title.SetStyles(tStyles)
 
 	form.description = textarea.New()
 	form.description.Placeholder = "Description (optional)"
 	form.description.CharLimit = 500
 	form.description.ShowLineNumbers = false
-	form.description.FocusedStyle.Base = FocusedTextAreaStyle
-	form.description.FocusedStyle.Placeholder = lipgloss.NewStyle().Foreground(ColorMuted)
-	form.description.BlurredStyle.Base = TextAreaStyle
-	form.description.BlurredStyle.Placeholder = lipgloss.NewStyle().Foreground(ColorMuted)
+	dStyles := textarea.DefaultStyles(true)
+	dStyles.Focused.Base = FocusedTextAreaStyle
+	dStyles.Focused.Placeholder = lipgloss.NewStyle().Foreground(ColorMuted)
+	dStyles.Blurred.Base = TextAreaStyle
+	dStyles.Blurred.Placeholder = lipgloss.NewStyle().Foreground(ColorMuted)
+	form.description.SetStyles(dStyles)
 
-	form.title.Width = 56
+	form.title.SetWidth(56)
 	form.description.SetWidth(56)
 	form.description.SetHeight(5)
 
@@ -50,7 +54,7 @@ func (m Form) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "ctrl+c", "esc":
 			return models[model], nil
@@ -86,7 +90,7 @@ func (m Form) CreateTask() tea.Msg {
 	return task
 }
 
-func (m Form) View() string {
+func (m Form) View() tea.View {
 	titleInput := m.title.View()
 	descInput := m.description.View()
 
@@ -115,7 +119,10 @@ func (m Form) View() string {
 	)
 
 	card := CardStyle.Render(content)
-	return CenterIn(m.width, m.height, card)
+	v := tea.NewView(CenterIn(m.width, m.height, card))
+	v.AltScreen = true
+	v.WindowTitle = "Listly"
+	return v
 }
 
 // SessionNameForm is a simple form for entering a session name
@@ -133,9 +140,11 @@ func NewSessionNameForm(onSave func(string) (tea.Model, tea.Cmd)) *SessionNameFo
 	f.name.Focus()
 	f.name.CharLimit = 50
 	f.name.Prompt = ""
-	f.name.TextStyle = lipgloss.NewStyle().Foreground(ColorFg)
-	f.name.PlaceholderStyle = lipgloss.NewStyle().Foreground(ColorMuted)
-	f.name.Width = 56
+	nStyles := textinput.DefaultStyles(true)
+	nStyles.Focused.Text = lipgloss.NewStyle().Foreground(ColorFg)
+	nStyles.Focused.Placeholder = lipgloss.NewStyle().Foreground(ColorMuted)
+	f.name.SetStyles(nStyles)
+	f.name.SetWidth(56)
 	return f
 }
 
@@ -147,7 +156,7 @@ func (m SessionNameForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "ctrl+c", "esc":
 			return models[model], nil
@@ -167,7 +176,7 @@ func (m SessionNameForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m SessionNameForm) View() string {
+func (m SessionNameForm) View() tea.View {
 	input := m.name.View()
 
 	content := lipgloss.JoinVertical(lipgloss.Left,
@@ -180,5 +189,8 @@ func (m SessionNameForm) View() string {
 	)
 
 	card := CardStyle.Render(content)
-	return CenterIn(m.width, m.height, card)
+	v := tea.NewView(CenterIn(m.width, m.height, card))
+	v.AltScreen = true
+	v.WindowTitle = "Listly"
+	return v
 }

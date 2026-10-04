@@ -1,10 +1,10 @@
 package main
 
 import (
-	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/list"
+	"charm.land/lipgloss/v2"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 type status int
@@ -181,18 +181,27 @@ func (m *Model) recreateLists() {
 	}
 }
 
-func (m Model) View() string {
+func (m Model) View() tea.View {
+	var content string
 	switch m.mode {
 	case welcome:
-		return m.welcomeView()
+		content = m.welcomeView()
 	case saving:
-		return models[sessionForm].View()
+		v := models[sessionForm].View()
+		v.AltScreen = true
+		v.WindowTitle = "Listly"
+		return v
 	case help:
-		return m.helpView()
+		content = m.helpView()
 	case normal, creation, filtering:
-		return m.mainView()
+		content = m.mainView()
+	default:
+		return tea.NewView("")
 	}
-	return ""
+	v := tea.NewView(content)
+	v.AltScreen = true
+	v.WindowTitle = "Listly"
+	return v
 }
 
 func (m Model) welcomeView() string {
@@ -350,7 +359,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.sessions = msg.sessions
 		m.welcomeIdx = 0
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch m.mode {
 		case welcome:
 			switch msg.String() {
