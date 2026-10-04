@@ -48,6 +48,12 @@ func NewStoreWithPath(dbPath string) (Store, error) {
 		return nil, err
 	}
 
+	// SQLite disables FK enforcement per connection by default.
+	if _, err := db.Exec(`PRAGMA foreign_keys = ON`); err != nil {
+		db.Close()
+		return nil, err
+	}
+
 	if err := createTables(db); err != nil {
 		db.Close()
 		return nil, err
@@ -70,6 +76,8 @@ func createTables(db *sql.DB) error {
 	}
 
 	// Migration: add is_daily column if missing
+	// TODO(1.0.0): remove this migration — 1.0.0 users start with a fresh DB
+	// where is_daily already exists in the CREATE TABLE above.
 	db.Exec(`ALTER TABLE lists ADD COLUMN is_daily INTEGER DEFAULT 0`)
 
 	tasksTable := `
@@ -79,12 +87,20 @@ func createTables(db *sql.DB) error {
 			status INTEGER NOT NULL,
 			title TEXT NOT NULL,
 			description TEXT,
-			FOREIGN KEY (list_id) REFERENCES lists(id)
+			FOREIGN KEY (list_id) REFERENCES lists(id) ON DELETE CASCADE
 		);
 	`
 	if _, err := db.Exec(tasksTable); err != nil {
 		return err
 	}
+
+	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_tasks_list_id ON tasks(list_id)`); err != nil {
+		return err
+	}
+
+	// One-time sweep of rows orphaned before DeleteSession cleaned up after
+	// itself. TODO(1.0.0): remove this — fresh 1.0.0 DBs never have orphans.
+	db.Exec(`DELETE FROM tasks WHERE list_id NOT IN (SELECT id FROM lists)`)
 
 	return nil
 }
@@ -194,8 +210,20 @@ func (s *sqliteStore) UpdateSessionName(listID int64, name string) error {
 }
 
 func (s *sqliteStore) DeleteSession(listID int64) error {
-	_, err := s.db.Exec(`DELETE FROM lists WHERE id = ?`, listID)
-	return err
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// Delete tasks explicitly so cleanup does not depend on FK pragma state.
+	if _, err := tx.Exec(`DELETE FROM tasks WHERE list_id = ?`, listID); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM lists WHERE id = ?`, listID); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func getDBPath() string {

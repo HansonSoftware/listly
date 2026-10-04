@@ -160,6 +160,11 @@ func TestSQLiteStore_DeleteSession(t *testing.T) {
 		t.Fatalf("CreateSession failed: %v", err)
 	}
 
+	tasks := []Task{NewTask(todo, "T1", ""), NewTask(done, "T2", "")}
+	if err := store.SaveSession(id, tasks); err != nil {
+		t.Fatalf("SaveSession failed: %v", err)
+	}
+
 	if err := store.DeleteSession(id); err != nil {
 		t.Fatalf("DeleteSession failed: %v", err)
 	}
@@ -170,5 +175,13 @@ func TestSQLiteStore_DeleteSession(t *testing.T) {
 	}
 	if len(sessions) != 0 {
 		t.Errorf("Expected 0 sessions after delete, got %d", len(sessions))
+	}
+
+	loaded, err := store.LoadSession(id)
+	if err != nil {
+		t.Fatalf("LoadSession after delete failed: %v", err)
+	}
+	if len(loaded) != 0 {
+		t.Errorf("Expected 0 tasks after session delete, got %d (orphaned rows)", len(loaded))
 	}
 }
