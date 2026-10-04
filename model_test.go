@@ -35,6 +35,31 @@ type failStore struct {
 
 func (f failStore) SaveSession(int64, []Task) error { return f.err }
 
+func TestWelcomeMode_EnterOpensSession(t *testing.T) {
+	store, err := NewStoreWithPath(":memory:")
+	if err != nil {
+		t.Fatalf("NewStoreWithPath failed: %v", err)
+	}
+	defer store.Close()
+
+	m := newTestModel()
+	m.store = store
+	m.sessions = []Session{{ID: 1, Name: "S", IsDaily: false}}
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	got := updated.(Model)
+
+	if got.mode != normal {
+		t.Errorf("mode = %v, want %v (normal)", got.mode, normal)
+	}
+	if got.sessionID != 1 {
+		t.Errorf("sessionID = %d, want 1", got.sessionID)
+	}
+	if got.isDaily {
+		t.Errorf("isDaily = true, want false")
+	}
+}
+
 func TestDailySession_AutoSaves(t *testing.T) {
 	store, err := NewStoreWithPath(":memory:")
 	if err != nil {
