@@ -92,6 +92,69 @@ func TestSQLiteStore_SaveAndLoadSession(t *testing.T) {
 	}
 }
 
+func TestSQLiteStore_SavePreservesTaskIDs(t *testing.T) {
+	store, err := NewStoreWithPath(":memory:")
+	if err != nil {
+		t.Fatalf("NewStoreWithPath failed: %v", err)
+	}
+	defer store.Close()
+
+	id, _ := store.CreateSession("ID Test")
+	tasks := []Task{NewTask(todo, "A", ""), NewTask(done, "B", "")}
+	if err := store.SaveSession(id, tasks); err != nil {
+		t.Fatalf("SaveSession failed: %v", err)
+	}
+
+	first, err := store.LoadSession(id)
+	if err != nil {
+		t.Fatalf("LoadSession failed: %v", err)
+	}
+	if first[0].id == 0 || first[1].id == 0 {
+		t.Fatalf("loaded tasks should have ids, got %d, %d", first[0].id, first[1].id)
+	}
+
+	// Re-saving the loaded tasks must keep their ids.
+	if err := store.SaveSession(id, first); err != nil {
+		t.Fatalf("SaveSession failed: %v", err)
+	}
+	second, err := store.LoadSession(id)
+	if err != nil {
+		t.Fatalf("LoadSession failed: %v", err)
+	}
+	if len(second) != 2 || second[0].id != first[0].id || second[1].id != first[1].id {
+		t.Errorf("ids changed across re-save: first=%v,%v second=%v,%v",
+			first[0].id, first[1].id, second[0].id, second[1].id)
+	}
+}
+
+func TestSQLiteStore_SaveAppendsNewWithFreshIDs(t *testing.T) {
+	store, err := NewStoreWithPath(":memory:")
+	if err != nil {
+		t.Fatalf("NewStoreWithPath failed: %v", err)
+	}
+	defer store.Close()
+
+	id, _ := store.CreateSession("Append Test")
+	store.SaveSession(id, []Task{NewTask(todo, "Existing", "")})
+	loaded, _ := store.LoadSession(id)
+
+	loaded = append(loaded, NewTask(todo, "New", ""))
+	if err := store.SaveSession(id, loaded); err != nil {
+		t.Fatalf("SaveSession failed: %v", err)
+	}
+
+	after, _ := store.LoadSession(id)
+	if len(after) != 2 {
+		t.Fatalf("expected 2 tasks, got %d", len(after))
+	}
+	if after[0].id != loaded[0].id {
+		t.Errorf("existing task id changed: %d != %d", after[0].id, loaded[0].id)
+	}
+	if after[1].id == 0 || after[1].id == after[0].id {
+		t.Errorf("new task should get a fresh distinct id, got %d", after[1].id)
+	}
+}
+
 func TestSQLiteStore_UpdateSessionName(t *testing.T) {
 	store, err := NewStoreWithPath(":memory:")
 	if err != nil {

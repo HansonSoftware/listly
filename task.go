@@ -11,6 +11,7 @@ import (
 )
 
 type Task struct {
+	id          int64 // database row id; 0 means not yet persisted
 	status      status
 	title       string
 	description string

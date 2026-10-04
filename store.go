@@ -166,14 +166,24 @@ func (s *sqliteStore) SaveSession(listID int64, tasks []Task) error {
 		return err
 	}
 
-	stmt, err := tx.Prepare(`INSERT INTO tasks (list_id, status, title, description) VALUES (?, ?, ?, ?)`)
+	insertWithID, err := tx.Prepare(`INSERT INTO tasks (id, list_id, status, title, description) VALUES (?, ?, ?, ?, ?)`)
 	if err != nil {
 		return err
 	}
-	defer stmt.Close()
+	defer insertWithID.Close()
+
+	insertNew, err := tx.Prepare(`INSERT INTO tasks (list_id, status, title, description) VALUES (?, ?, ?, ?)`)
+	if err != nil {
+		return err
+	}
+	defer insertNew.Close()
 
 	for _, task := range tasks {
-		_, err = stmt.Exec(listID, task.Status(), task.Title(), task.Description())
+		if task.id > 0 {
+			_, err = insertWithID.Exec(task.id, listID, task.Status(), task.Title(), task.Description())
+		} else {
+			_, err = insertNew.Exec(listID, task.Status(), task.Title(), task.Description())
+		}
 		if err != nil {
 			return err
 		}
@@ -183,7 +193,7 @@ func (s *sqliteStore) SaveSession(listID int64, tasks []Task) error {
 }
 
 func (s *sqliteStore) LoadSession(listID int64) ([]Task, error) {
-	rows, err := s.db.Query(`SELECT id, list_id, status, title, description FROM tasks WHERE list_id = ?`, listID)
+	rows, err := s.db.Query(`SELECT id, list_id, status, title, description FROM tasks WHERE list_id = ? ORDER BY id`, listID)
 	if err != nil {
 		return nil, err
 	}
@@ -196,6 +206,7 @@ func (s *sqliteStore) LoadSession(listID int64) ([]Task, error) {
 			return nil, err
 		}
 		tasks = append(tasks, Task{
+			id:          t.ID,
 			status:      status(t.Status),
 			title:       t.Title,
 			description: t.Description,
