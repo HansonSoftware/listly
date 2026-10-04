@@ -92,12 +92,33 @@ func TestMainView_HelpBarVisible(t *testing.T) {
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
 
 	content := m.View().Content
-	if !strings.Contains(content, "Enter: move task") {
-		t.Errorf("help bar missing from mainView:\n%s", content)
+	if !strings.Contains(content, "?: keybinds") {
+		t.Errorf("help bar missing from mainView")
 	}
 	lines := strings.Count(content, "\n") + 1
 	if lines > 30 {
 		t.Errorf("mainView produced %d lines, exceeds terminal height 30", lines)
+	}
+}
+
+func TestNormalMode_EscReturnsToWelcome(t *testing.T) {
+	store, err := NewStoreWithPath(":memory:")
+	if err != nil {
+		t.Fatalf("NewStoreWithPath failed: %v", err)
+	}
+	defer store.Close()
+	id, _ := store.CreateSession("S")
+
+	m := newTestModel()
+	m.store = store
+	m.sessionID = id
+	m.loaded = true
+	m.mode = normal
+
+	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	u := updated.(*Model)
+	if u.mode != welcome {
+		t.Fatalf("mode = %v after esc, want welcome", u.mode)
 	}
 }
 

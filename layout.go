@@ -18,8 +18,8 @@ type Layout struct {
 func ColumnLayout(width, height int) Layout {
 	// Board takes (width - remainder) to be divisible by 3
 	boardWidth := width - (width % 3)
-	// Each column gets 1/3 minus gap
-	colTotalWidth := (boardWidth / 3) - 2
+	// Each column gets an equal third, flush with its neighbors.
+	colTotalWidth := boardWidth / 3
 	// Internal width for list: total - column padding(2+2) - border(1+1)
 	colInternalWidth := colTotalWidth - 6
 	if colInternalWidth < 10 {
@@ -30,10 +30,9 @@ func ColumnLayout(width, height int) Layout {
 	if colContentWidth < 10 {
 		colContentWidth = 10
 	}
-	// Height: board top margin(1) + title(2) + column padding+border(4) +
-	// list = ColHeight, help bar top margin(1) + help line(1),
-	// and one spare line of breathing room.
-	colHeight := height - 9
+	// Budget: session title line(1) + board top margin(1) + column title(2)
+	// + border/padding(4) + list content + help margin(1) + help line(1).
+	colHeight := height - 10
 	if colHeight < 10 {
 		colHeight = 10
 	}

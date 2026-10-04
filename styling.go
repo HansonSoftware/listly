@@ -67,6 +67,12 @@ var (
 				MarginBottom(1).
 				Background(ColorSelection)
 
+	// BoardTitleStyle is the session title shown above the board.
+	BoardTitleStyle = lipgloss.NewStyle().
+		Foreground(ColorPrimary).
+		Bold(true).
+		Padding(0, 1)
+
 	// Task item styles
 	TaskStyle = lipgloss.NewStyle().
 			Padding(0, 1).

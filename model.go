@@ -27,24 +27,25 @@ const (
 )
 
 type Model struct {
-	lists         []list.Model
-	undoStack     *UndoStack
-	focused       status
-	loaded        bool
-	shutdown      bool
-	mode          mode
-	err           error
-	sessionID     int64
-	isDaily       bool
-	welcomeIdx    int
-	sessions      []Session
-	confirm *ConfirmDialog
-	width         int
-	height        int
-	store         Store
-	form          *Form
-	sessionForm   *SessionNameForm
-	returnMode    mode
+	lists       []list.Model
+	undoStack   *UndoStack
+	focused     status
+	loaded      bool
+	shutdown    bool
+	mode        mode
+	err         error
+	sessionID   int64
+	sessionName string
+	isDaily     bool
+	welcomeIdx  int
+	sessions    []Session
+	confirm     *ConfirmDialog
+	width       int
+	height      int
+	store       Store
+	form        *Form
+	sessionForm *SessionNameForm
+	returnMode  mode
 }
 
 func New(store Store) *Model {
@@ -311,9 +312,10 @@ func (m Model) mainView() string {
 
 	board = lipgloss.NewStyle().MarginTop(1).Render(board)
 
-	help := HelpStyle.Render("←/→/Tab: switch columns  •  Enter: move task  •  n: new  •  d: delete  •  u: undo  •  Ctrl+s: save  •  /: filter  •  ?: help  •  q: quit")
+	title := BoardTitleStyle.Render(m.sessionName)
+	help := lipgloss.NewStyle().Padding(0, 1).Render(HelpStyle.Render("←/→/Tab: columns  •  Enter: move  •  n: new  •  x: delete  •  u: undo  •  /: filter  •  ?: keybinds  •  esc: sessions  •  q: quit"))
 
-	parts := []string{board, help}
+	parts := []string{title, board, help}
 	if m.err != nil {
 		parts = append([]string{ErrorBannerStyle.Render("Error: " + m.err.Error())}, parts...)
 	}
@@ -358,6 +360,9 @@ func (m *Model) loadSessionTasks(sessionID int64) {
 	if err != nil {
 		m.err = err
 		return
+	}
+	for i := range m.lists {
+		m.lists[i].SetItems(nil)
 	}
 	for _, task := range tasks {
 		m.lists[task.status].InsertItem(len(m.lists[task.status].Items()), task)
@@ -420,6 +425,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if len(m.sessions) > 0 {
 					s := m.sessions[m.welcomeIdx]
 					m.sessionID = s.ID
+					m.sessionName = s.Name
 					m.isDaily = s.IsDaily
 					m.mode = normal
 					m.loadSessionTasks(s.ID)
@@ -436,6 +442,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						}
 						m.sessionID = id
 						m.isDaily = false
+						m.sessionName = name
 						m.mode = normal
 					},
 					func() { m.mode = m.returnMode },
@@ -448,6 +455,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, nil
 				}
 				m.sessionID = id
+				m.sessionName = "Daily"
 				m.isDaily = true
 				m.mode = normal
 				m.loadSessionTasks(id)
@@ -481,6 +489,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 			case "left", "h", "shift+tab":
 				m.Prev()
+			case "esc":
+				m.autoSave()
+				m.mode = welcome
+				return m, m.loadSessions
 			case "right", "l", "tab":
 				m.Next()
 			case "enter":
@@ -537,6 +549,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							}
 						}
 						m.mode = normal
+						m.sessionName = name
 						m.autoSave()
 					},
 					func() { m.mode = m.returnMode },
