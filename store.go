@@ -9,7 +9,6 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-// Store defines the database operations for task sessions
 type Store interface {
 	ListSessions() ([]Session, error)
 	CreateSession(name string) (int64, error)
@@ -21,18 +20,15 @@ type Store interface {
 	Close() error
 }
 
-// sqliteStore implements Store using SQLite
 type sqliteStore struct {
 	db *sql.DB
 }
 
-// NewStore creates a new SQLite store using the default DB path
 func NewStore() (Store, error) {
 	dbPath := getDBPath()
 	return NewStoreWithPath(dbPath)
 }
 
-// NewStoreWithPath creates a new SQLite store at the given path
 func NewStoreWithPath(dbPath string) (Store, error) {
 	dir := filepath.Dir(dbPath)
 	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
@@ -41,6 +37,14 @@ func NewStoreWithPath(dbPath string) (Store, error) {
 
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
+		return nil, err
+	}
+
+	// TODO: Test behavior when multiple listly instances are running.
+	db.SetMaxOpenConns(1)
+
+	if err := db.Ping(); err != nil {
+		db.Close()
 		return nil, err
 	}
 
@@ -204,7 +208,6 @@ func getDBPath() string {
 	return filepath.Join(home, ".local/share/listly", "listly.db")
 }
 
-// Session represents a saved task list
 type Session struct {
 	ID        int64
 	Name      string
@@ -212,7 +215,6 @@ type Session struct {
 	IsDaily   bool
 }
 
-// DBTask represents a task in the database
 type DBTask struct {
 	ID          int64
 	ListID      int64
@@ -222,4 +224,3 @@ type DBTask struct {
 }
 
 var _ Store = (*sqliteStore)(nil) // Compile-time interface check
-

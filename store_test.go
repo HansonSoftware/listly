@@ -117,6 +117,37 @@ func TestSQLiteStore_UpdateSessionName(t *testing.T) {
 	}
 }
 
+func TestSQLiteStore_MemoryDBStableAcrossManyOps(t *testing.T) {
+	store, err := NewStoreWithPath(":memory:")
+	if err != nil {
+		t.Fatalf("NewStoreWithPath failed: %v", err)
+	}
+	defer store.Close()
+
+	// Exercise the pool heavily: every query path must hit the same
+	// underlying in-memory database.
+	for i := 0; i < 50; i++ {
+		id, err := store.CreateSession("Session")
+		if err != nil {
+			t.Fatalf("CreateSession %d failed: %v", i, err)
+		}
+		if err := store.SaveSession(id, []Task{NewTask(todo, "T", "")}); err != nil {
+			t.Fatalf("SaveSession %d failed: %v", i, err)
+		}
+		if _, err := store.LoadSession(id); err != nil {
+			t.Fatalf("LoadSession %d failed: %v", i, err)
+		}
+	}
+
+	sessions, err := store.ListSessions()
+	if err != nil {
+		t.Fatalf("ListSessions failed: %v", err)
+	}
+	if len(sessions) != 50 {
+		t.Errorf("Expected 50 sessions, got %d", len(sessions))
+	}
+}
+
 func TestSQLiteStore_DeleteSession(t *testing.T) {
 	store, err := NewStoreWithPath(":memory:")
 	if err != nil {
