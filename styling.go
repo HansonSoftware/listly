@@ -1,23 +1,37 @@
 package main
 
 import (
+	"image/color"
+	"os"
+
 	"charm.land/lipgloss/v2"
 )
 
-// Color palette
+// Terminal colors follow the user's own terminal theme: the palette below
+// references the ANSI basic colors (indices 0-15), which the terminal maps
+// to its configured colors. Set NO_COLOR, or run with TERM=dumb, to fall
+// back to plain uncolored output.
+// pick maps a terminal color to plain output when colors are unavailable.
+func pick(c color.Color) color.Color {
+	if os.Getenv("NO_COLOR") != "" || os.Getenv("TERM") == "dumb" {
+		return lipgloss.NoColor{}
+	}
+	return c
+}
+
 var (
-	ColorBg          = lipgloss.Color("#1a1b26")
-	ColorFg          = lipgloss.Color("#c0caf5")
-	ColorMuted       = lipgloss.Color("#565f89")
-	ColorPrimary     = lipgloss.Color("#7aa2f7")
-	ColorSecondary   = lipgloss.Color("#bb9af7")
-	ColorSuccess     = lipgloss.Color("#9ece6a")
-	ColorWarning     = lipgloss.Color("#e0af68")
-	ColorError       = lipgloss.Color("#f7768e")
-	ColorBorder      = lipgloss.Color("#292e42")
-	ColorBorderFocus = lipgloss.Color("#7aa2f7")
-	ColorCardBg      = lipgloss.Color("#16161e")
-	ColorSelection   = lipgloss.Color("#2e3c64")
+	ColorBg          color.Color = lipgloss.NoColor{} // inherit terminal background
+	ColorFg          color.Color = lipgloss.NoColor{} // inherit terminal foreground
+	ColorMuted       color.Color = pick(lipgloss.BrightBlack)
+	ColorPrimary     color.Color = pick(lipgloss.Blue)
+	ColorSecondary   color.Color = pick(lipgloss.Magenta)
+	ColorSuccess     color.Color = pick(lipgloss.Green)
+	ColorWarning     color.Color = pick(lipgloss.Yellow)
+	ColorError       color.Color = pick(lipgloss.Red)
+	ColorBorder      color.Color = pick(lipgloss.BrightBlack)
+	ColorBorderFocus color.Color = pick(lipgloss.Blue)
+	ColorCardBg      color.Color = lipgloss.NoColor{}
+	ColorSelection   color.Color = pick(lipgloss.BrightBlack)
 )
 
 // Base styles
@@ -150,9 +164,9 @@ var (
 
 	// ErrorBannerStyle surfaces persistence errors to the user
 	ErrorBannerStyle = lipgloss.NewStyle().
-		Foreground(ColorError).
-		Bold(true).
-		Padding(0, 1)
+				Foreground(ColorError).
+				Bold(true).
+				Padding(0, 1)
 
 	// Status indicators
 	StatusTodoStyle = lipgloss.NewStyle().
