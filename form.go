@@ -14,6 +14,7 @@ type Form struct {
 	focused     status
 	width       int
 	height      int
+	onCancel    func()
 }
 
 func NewForm(focused status) *Form {
@@ -50,26 +51,29 @@ func (m Form) Init() tea.Cmd {
 	return textarea.Blink
 }
 
-func (m Form) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *Form) Update(msg tea.Msg) tea.Cmd {
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "ctrl+c", "esc":
-			return models[model], nil
+			if m.onCancel != nil {
+				m.onCancel()
+			}
+			return nil
 		case "enter":
 			if m.title.Focused() {
 				m.title.Blur()
 				m.description.Focus()
-				return m, textarea.Blink
+				return textarea.Blink
 			} else {
-				models[form] = m
-				return models[model], m.CreateTask
+				f := *m
+				return f.CreateTask
 			}
 		case "tab", "shift+tab":
 			// Prevent tab from switching columns while in form
-			return m, nil
+			return nil
 		}
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -78,10 +82,10 @@ func (m Form) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	if m.title.Focused() {
 		m.title, cmd = m.title.Update(msg)
-		return m, cmd
+		return cmd
 	} else {
 		m.description, cmd = m.description.Update(msg)
-		return m, cmd
+		return cmd
 	}
 }
 
@@ -127,14 +131,15 @@ func (m Form) View() tea.View {
 
 // SessionNameForm is a simple form for entering a session name
 type SessionNameForm struct {
-	name   textinput.Model
-	onSave func(string) (tea.Model, tea.Cmd)
-	width  int
-	height int
+	name     textinput.Model
+	onSave   func(string)
+	onCancel func()
+	width    int
+	height   int
 }
 
-func NewSessionNameForm(onSave func(string) (tea.Model, tea.Cmd)) *SessionNameForm {
-	f := &SessionNameForm{onSave: onSave}
+func NewSessionNameForm(onSave func(string), onCancel func()) *SessionNameForm {
+	f := &SessionNameForm{onSave: onSave, onCancel: onCancel}
 	f.name = textinput.New()
 	f.name.Placeholder = "Session name"
 	f.name.Focus()
@@ -152,20 +157,27 @@ func (m SessionNameForm) Init() tea.Cmd {
 	return nil
 }
 
-func (m SessionNameForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *SessionNameForm) Update(msg tea.Msg) tea.Cmd {
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "ctrl+c", "esc":
-			return models[model], nil
+			if m.onCancel != nil {
+				m.onCancel()
+			}
+			return nil
 		case "enter":
 			name := m.name.Value()
 			if name != "" {
-				return m.onSave(name)
+				if m.onSave != nil {
+					m.onSave(name)
+				}
+			} else if m.onCancel != nil {
+				m.onCancel()
 			}
-			return models[model], nil
+			return nil
 		}
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -173,7 +185,7 @@ func (m SessionNameForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	m.name, cmd = m.name.Update(msg)
-	return m, cmd
+	return cmd
 }
 
 func (m SessionNameForm) View() tea.View {

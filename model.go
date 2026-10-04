@@ -41,15 +41,10 @@ type Model struct {
 	width      int
 	height     int
 	store      Store
+	form       *Form
+	sessionForm *SessionNameForm
+	returnMode mode
 }
-
-var models []tea.Model
-
-const (
-	model status = iota
-	form
-	sessionForm
-)
 
 func New(store Store) *Model {
 	return &Model{
@@ -182,26 +177,41 @@ func (m *Model) recreateLists() {
 }
 
 func (m Model) View() tea.View {
-	var content string
 	switch m.mode {
 	case welcome:
-		content = m.welcomeView()
-	case saving:
-		v := models[sessionForm].View()
+		v := tea.NewView(m.welcomeView())
 		v.AltScreen = true
 		v.WindowTitle = "Listly"
 		return v
+	case saving:
+		if m.sessionForm != nil {
+			v := m.sessionForm.View()
+			v.AltScreen = true
+			v.WindowTitle = "Listly"
+			return v
+		}
+		return tea.NewView("")
+	case creation:
+		if m.form != nil {
+			v := m.form.View()
+			v.AltScreen = true
+			v.WindowTitle = "Listly"
+			return v
+		}
+		return tea.NewView("")
 	case help:
-		content = m.helpView()
-	case normal, creation, filtering:
-		content = m.mainView()
+		v := tea.NewView(m.helpView())
+		v.AltScreen = true
+		v.WindowTitle = "Listly"
+		return v
+	case normal, filtering:
+		v := tea.NewView(m.mainView())
+		v.AltScreen = true
+		v.WindowTitle = "Listly"
+		return v
 	default:
 		return tea.NewView("")
 	}
-	v := tea.NewView(content)
-	v.AltScreen = true
-	v.WindowTitle = "Listly"
-	return v
 }
 
 func (m Model) welcomeView() string {
@@ -354,6 +364,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.recreateLists()
 		}
+		if m.form != nil && m.mode == creation {
+			m.form.width = msg.Width
+			m.form.height = msg.Height
+		}
+		if m.sessionForm != nil && m.mode == saving {
+			m.sessionForm.width = msg.Width
+			m.sessionForm.height = msg.Height
+		}
 
 	case sessionsLoadedMsg:
 		m.sessions = msg.sessions
@@ -361,6 +379,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyPressMsg:
 		switch m.mode {
+		case creation:
+			if m.form != nil {
+				return m, m.form.Update(msg)
+			}
+		case saving:
+			if m.sessionForm != nil {
+				return m, m.sessionForm.Update(msg)
+			}
 		case welcome:
 			switch msg.String() {
 			case "ctrl+c", "q":
@@ -383,19 +409,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.loadSessionTasks(s.ID)
 				}
 			case "n":
+				m.returnMode = welcome
 				m.mode = saving
-				models[sessionForm] = NewSessionNameForm(func(name string) (tea.Model, tea.Cmd) {
-					id, err := m.store.CreateSession(name)
-					if err != nil {
-						m.err = err
-						return m, nil
-					}
-					m.sessionID = id
-					m.isDaily = false
-					m.mode = normal
-					return m, nil
-				})
-				return models[sessionForm], nil
+				m.sessionForm = NewSessionNameForm(
+					func(name string) {
+						id, err := m.store.CreateSession(name)
+						if err != nil {
+							m.err = err
+							return
+						}
+						m.sessionID = id
+						m.isDaily = false
+						m.mode = normal
+					},
+					func() { m.mode = m.returnMode },
+				)
+				return m, nil
 			case "d":
 				id, err := m.store.GetDailySession()
 				if err != nil {
@@ -426,38 +455,42 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "/":
 				m.mode = filtering
 			case "n":
-				models[model] = m
 				f := NewForm(m.focused)
 				f.width = m.width
 				f.height = m.height
-				models[form] = f
-				return models[form], nil
+				f.onCancel = func() { m.mode = normal }
+				m.form = f
+				m.mode = creation
+				return m, m.form.Init()
 			case "u":
 				m.undo()
 					m.autoSave()
 			case "ctrl+s":
+				m.returnMode = normal
 				m.mode = saving
-				models[sessionForm] = NewSessionNameForm(func(name string) (tea.Model, tea.Cmd) {
-					if m.sessionID == 0 {
-						id, err := m.store.CreateSession(name)
-						if err != nil {
-							m.err = err
-							return m, nil
+				m.sessionForm = NewSessionNameForm(
+					func(name string) {
+						if m.sessionID == 0 {
+							id, err := m.store.CreateSession(name)
+							if err != nil {
+								m.err = err
+								return
+							}
+							m.sessionID = id
+						} else {
+							// Update existing session name
+							err := m.store.UpdateSessionName(m.sessionID, name)
+							if err != nil {
+								m.err = err
+								return
+							}
 						}
-						m.sessionID = id
-					} else {
-						// Update existing session name
-						err := m.store.UpdateSessionName(m.sessionID, name)
-						if err != nil {
-							m.err = err
-							return m, nil
-						}
-					}
-					m.mode = normal
-					m.autoSave()
-					return m, nil
-				})
-				return models[sessionForm], nil
+						m.mode = normal
+						m.autoSave()
+					},
+					func() { m.mode = m.returnMode },
+				)
+				return m, nil
 			}
 
 		case filtering:
@@ -489,6 +522,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 				m.autoSave()
 		})
+		if m.mode == creation {
+			m.mode = normal
+		}
 		return m, m.lists[task.status].InsertItem(idx, task)
 	}
 

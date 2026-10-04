@@ -16,8 +16,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	models = []tea.Model{New(store), NewForm(todo), NewSessionNameForm(nil)}
-	m := models[model]
+	m := New(store)
 	program := tea.NewProgram(m)
 
 	if _, err := program.Run(); err != nil {
