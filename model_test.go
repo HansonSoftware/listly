@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/bubbles/list"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 func newTestModel(tasks ...Task) *Model {
@@ -51,6 +52,49 @@ func TestMoveToNext_UndoRestoresOriginalColumn(t *testing.T) {
 	restored := items[0].(Task)
 	if restored.Title() != "Task A" || restored.Status() != todo {
 		t.Errorf("undo restored wrong task: title=%q status=%d", restored.Title(), restored.Status())
+	}
+}
+
+func TestDeleteTask_UndoRestoresTaskAtIndex(t *testing.T) {
+	first := NewTask(todo, "First", "")
+	second := NewTask(todo, "Second", "")
+	m := newTestModel(first, second)
+
+	// Select and delete the first task.
+	m.lists[todo].Select(0)
+	m.DeleteTask()
+
+	items := m.lists[todo].Items()
+	if len(items) != 1 || items[0].(Task).Title() != "Second" {
+		t.Fatalf("expected todo=[Second], got %v", items)
+	}
+
+	m.undo()
+	items = m.lists[todo].Items()
+	if len(items) != 2 || items[0].(Task).Title() != "First" || items[1].(Task).Title() != "Second" {
+		t.Fatalf("expected todo=[First, Second] after undo, got %v", items)
+	}
+}
+
+func TestTaskMsg_UndoRemovesInsertedTask(t *testing.T) {
+	existing := NewTask(todo, "Existing", "")
+	m := newTestModel(existing)
+
+	// Simulate the form emitting a new Task.
+	newTask := NewTask(todo, "Fresh", "desc")
+	msg := tea.Msg(newTask)
+	updated, _ := m.Update(msg.(Task))
+	*m = updated.(Model)
+
+	items := m.lists[todo].Items()
+	if len(items) != 2 {
+		t.Fatalf("expected 2 tasks, got %d", len(items))
+	}
+
+	m.undo()
+	items = m.lists[todo].Items()
+	if len(items) != 1 || items[0].(Task).Title() != "Existing" {
+		t.Fatalf("expected only 'Existing' after undo, got %v", items)
 	}
 }
 

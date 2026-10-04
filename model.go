@@ -104,12 +104,14 @@ func (m *Model) undo() {
 
 func (m *Model) DeleteTask() tea.Msg {
 	if m.lists[m.focused].SelectedItem() != nil {
-		selectedItem := m.lists[m.focused].SelectedItem()
-		selectedTask := selectedItem.(Task)
-		idx := m.lists[m.focused].Index()
-		m.lists[selectedTask.status].RemoveItem(idx)
+		l := &m.lists[m.focused]
+		item := l.SelectedItem()
+		task := item.(Task)
+		idx := l.Index()
+		l.RemoveItem(idx)
 		m.pushUndo(func() {
-			m.lists[selectedTask.status].InsertItem(idx, selectedItem)
+			m.lists[task.status].InsertItem(idx, item)
+			m.lists[task.status].Select(idx)
 			if !m.isDaily {
 				m.autoSave()
 			}
@@ -472,16 +474,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case Task:
 		task := msg
+		idx := len(m.lists[task.status].Items())
 		m.pushUndo(func() {
 			items := m.lists[task.status].Items()
-			if len(items) > 0 {
-				m.lists[task.status].RemoveItem(len(items) - 1)
+			if idx < len(items) {
+				if t, ok := items[idx].(Task); ok && t.Title() == task.Title() {
+					m.lists[task.status].RemoveItem(idx)
+				}
 			}
 			if !m.isDaily {
 				m.autoSave()
 			}
 		})
-		return m, m.lists[task.status].InsertItem(len(m.lists[task.status].Items()), task)
+		return m, m.lists[task.status].InsertItem(idx, task)
 	}
 
 	// Update focused list
