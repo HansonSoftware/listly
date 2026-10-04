@@ -1,35 +1,41 @@
 package main
 
-// UndoStack stores reverse operations for undo functionality
+// op is a paired undo/redo operation.
+type op struct {
+	undo func()
+	redo func()
+}
+
+// UndoStack stores undo/redo pairs with a fixed capacity.
 type UndoStack struct {
-	ops []func()
+	ops []op
 	max int
 }
 
 // NewUndoStack creates a new undo stack with max capacity
 func NewUndoStack(maxOps int) *UndoStack {
 	return &UndoStack{
-		ops: make([]func(), 0),
+		ops: make([]op, 0),
 		max: maxOps,
 	}
 }
 
-// Push adds a reverse operation to the stack
-func (u *UndoStack) Push(fn func()) {
-	u.ops = append(u.ops, fn)
+// Push adds an undo/redo pair to the stack
+func (u *UndoStack) Push(undo, redo func()) {
+	u.ops = append(u.ops, op{undo: undo, redo: redo})
 	if len(u.ops) > u.max {
 		u.ops = u.ops[1:]
 	}
 }
 
-// Pop removes and returns the last operation
-func (u *UndoStack) Pop() func() {
+// Pop removes and returns the last operation pair
+func (u *UndoStack) Pop() (op, bool) {
 	if len(u.ops) == 0 {
-		return nil
+		return op{}, false
 	}
-	fn := u.ops[len(u.ops)-1]
+	o := u.ops[len(u.ops)-1]
 	u.ops = u.ops[:len(u.ops)-1]
-	return fn
+	return o, true
 }
 
 // Len returns the number of operations
@@ -41,3 +47,29 @@ func (u *UndoStack) Len() int {
 func (u *UndoStack) Clear() {
 	u.ops = u.ops[:0]
 }
+
+// History holds one session's undo/redo stacks.
+type History struct {
+	undo *UndoStack
+	redo *UndoStack
+}
+
+// NewHistory creates an empty history for a session.
+func NewHistory(maxOps int) *History {
+	return &History{undo: NewUndoStack(maxOps), redo: NewUndoStack(maxOps)}
+}
+
+// histories keeps an undo/redo history per session ID for the lifetime of the
+// program, so toggling between sessions preserves each one's undo/redo state.
+type histories map[int64]*History
+
+func (h histories) get(id int64) *History {
+	if hist, ok := h[id]; ok {
+		return hist
+	}
+	hist := NewHistory(historyMaxOps)
+	h[id] = hist
+	return hist
+}
+
+const historyMaxOps = 50

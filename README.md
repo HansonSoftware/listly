@@ -4,27 +4,6 @@ Manage your daily tasks right in the terminal.
 
 This easy to use TUI allows you to efficiently organize your TODO list with vim-like keybinds.
 
-## TODO:
-
-- [x] model datatypes
-- [x] display tui
-- [x] make tui appealing to look at (thanks charm cli)
-- [x] choose and connect to a local db
-- [x] store sessions in db
-- [x] welcome page / session organizer
-- [x] "daily session" option that doesn't need saved
-- [x] save lists / session with keybind ctrl-s
-- [x] saving popup (name your session)
-- [x] create columns (todo / in progress / done)
-- [x] create form (for todos)
-- [x] move todos to other columns (when complete or in progress)
-- [x] delete todos
-- [x] undo list (with u keybind and a stack)
-- [x] allow tab & shift-tab movement between cols
-- [x] fix bug where keybinds are registered in filter or new task
-- [x] ? displays keybind guide
-- [x] finalize intuitive keybinds
-
 ## Keybinds
 
 ### Welcome Screen

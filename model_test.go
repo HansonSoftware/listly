@@ -13,7 +13,7 @@ func newTestModel(tasks ...Task) *Model {
 	m := &Model{
 		focused:      todo,
 		isDaily:      true, // skip store persistence in tests
-		undoStack:    NewUndoStack(50),
+		histories:    histories{},
 		lists:        make([]list.Model, 3),
 		sessionsList: list.New(nil, list.NewDefaultDelegate(), 44, 8),
 	}
@@ -305,6 +305,89 @@ func TestDeleteTask_UndoRestoresTaskAtIndex(t *testing.T) {
 	items = m.lists[todo].Items()
 	if len(items) != 2 || items[0].(Task).Title() != "First" || items[1].(Task).Title() != "Second" {
 		t.Fatalf("expected todo=[First, Second] after undo, got %v", items)
+	}
+}
+
+func TestMoveToNext_RedoReappliesMove(t *testing.T) {
+	task := NewTask(todo, "Task A", "desc")
+	m := newTestModel(task)
+
+	m.MoveToNext()
+	m.undo()
+	if len(m.lists[todo].Items()) != 1 {
+		t.Fatalf("expected task back in todo after undo")
+	}
+
+	m.redo()
+	if len(m.lists[todo].Items()) != 0 {
+		t.Errorf("todo should be empty after redo")
+	}
+	if len(m.lists[completing].Items()) != 1 {
+		t.Errorf("completing should have the task after redo")
+	}
+}
+
+func TestRedo_ClearedByNewAction(t *testing.T) {
+	m := newTestModel(NewTask(todo, "A", ""))
+	m.MoveToNext()
+	m.undo()
+	if m.history().redo.Len() != 1 {
+		t.Fatalf("redoStack.Len() = %d, want 1", m.history().redo.Len())
+	}
+	// A new action invalidates pending redo.
+	m.MoveToNext()
+	if m.history().redo.Len() != 0 {
+		t.Errorf("redoStack.Len() = %d after new action, want 0", m.history().redo.Len())
+	}
+	// Redo with an empty stack is a no-op.
+	m.redo()
+	if len(m.lists[completing].Items()) != 1 {
+		t.Errorf("completing should still have the task, got %d", len(m.lists[completing].Items()))
+	}
+}
+
+func TestDeleteTask_RedoRemovesAgain(t *testing.T) {
+	m := newTestModel(NewTask(todo, "First", ""), NewTask(todo, "Second", ""))
+	m.lists[todo].Select(0)
+	m.DeleteTask()
+	m.undo()
+	if len(m.lists[todo].Items()) != 2 {
+		t.Fatalf("expected 2 items after undo")
+	}
+	m.redo()
+	if len(m.lists[todo].Items()) != 1 {
+		t.Errorf("expected 1 item after redo, got %d", len(m.lists[todo].Items()))
+	}
+}
+
+func TestHistories_PerSessionIsolation(t *testing.T) {
+	store, err := NewStoreWithPath(":memory:")
+	if err != nil {
+		t.Fatalf("NewStoreWithPath failed: %v", err)
+	}
+	defer store.Close()
+
+	m := newTestModel(NewTask(todo, "A", ""))
+	m.store = store
+
+	// Session 1: make an action and undo it, leaving a pending redo.
+	m.sessionID = 1
+	m.MoveToNext()
+	m.undo()
+
+	// Switching sessions must not expose session 1's redo.
+	m.sessionID = 2
+	m.lists[todo].SetItems([]list.Item{NewTask(todo, "B", "")})
+	m.redo()
+	if len(m.lists[completing].Items()) != 0 {
+		t.Errorf("session 2 redo should be a no-op, completing has %d items", len(m.lists[completing].Items()))
+	}
+
+	// Returning to session 1 restores its pending redo.
+	m.sessionID = 1
+	m.redo()
+	if len(m.lists[completing].Items()) != 1 {
+		t.Errorf("session 1 redo should apply, completing has %d items", len(m.lists[completing].Items()))
 	}
 }
 

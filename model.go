@@ -30,7 +30,7 @@ const (
 
 type Model struct {
 	lists        []list.Model
-	undoStack    *UndoStack
+	histories    histories
 	focused      status
 	loaded       bool
 	shutdown     bool
@@ -105,7 +105,7 @@ func New(store Store) *Model {
 		mode:         welcome,
 		lists:        lists,
 		sessionsList: sl,
-		undoStack:    NewUndoStack(50),
+		histories:    histories{},
 		store:        store,
 	}
 }
@@ -142,13 +142,37 @@ func (m *Model) Prev() {
 	}
 }
 
-func (m *Model) pushUndo(fn func()) {
-	m.undoStack.Push(fn)
+// history returns the undo/redo history for the active session.
+func (m *Model) history() *History {
+	return m.histories.get(m.sessionID)
+}
+
+func (m *Model) pushUndo(undoFn, redoFn func()) {
+	h := m.history()
+	h.undo.Push(undoFn, redoFn)
+	// A fresh action invalidates any pending redo.
+	h.redo.Clear()
 }
 
 func (m *Model) undo() {
-	if fn := m.undoStack.Pop(); fn != nil {
-		fn()
+	h := m.history()
+	if o, ok := h.undo.Pop(); ok {
+		if o.undo != nil {
+			o.undo()
+		}
+		h.redo.Push(o.undo, o.redo)
+		m.autoSave()
+	}
+}
+
+func (m *Model) redo() {
+	h := m.history()
+	if o, ok := h.redo.Pop(); ok {
+		if o.redo != nil {
+			o.redo()
+		}
+		h.undo.Push(o.undo, o.redo)
+		m.autoSave()
 	}
 }
 
@@ -159,11 +183,15 @@ func (m *Model) DeleteTask() tea.Msg {
 		task := item.(Task)
 		idx := l.Index()
 		l.RemoveItem(idx)
-		m.pushUndo(func() {
-			m.lists[task.status].InsertItem(idx, item)
-			m.lists[task.status].Select(idx)
-			m.autoSave()
-		})
+		m.pushUndo(
+			func() {
+				m.lists[task.status].InsertItem(idx, item)
+				m.lists[task.status].Select(idx)
+			},
+			func() {
+				m.lists[task.status].RemoveItem(idx)
+			},
+		)
 		m.autoSave()
 		return nil
 	}
@@ -180,12 +208,18 @@ func (m *Model) MoveToNext() tea.Msg {
 		m.lists[before.status].RemoveItem(idx)
 		newIdx := len(m.lists[after.status].Items())
 		m.lists[after.status].InsertItem(newIdx, list.Item(after))
-		m.pushUndo(func() {
-			m.lists[after.status].RemoveItem(newIdx)
-			m.lists[before.status].InsertItem(idx, list.Item(before))
-			m.lists[before.status].Select(idx)
-			m.autoSave()
-		})
+		m.pushUndo(
+			func() {
+				m.lists[after.status].RemoveItem(newIdx)
+				m.lists[before.status].InsertItem(idx, list.Item(before))
+				m.lists[before.status].Select(idx)
+			},
+			func() {
+				m.lists[before.status].RemoveItem(idx)
+				m.lists[after.status].InsertItem(newIdx, list.Item(after))
+				m.lists[after.status].Select(newIdx)
+			},
+		)
 		m.autoSave()
 		return nil
 	}
@@ -397,6 +431,7 @@ func (m Model) helpView() string {
 			{"n", "New task"},
 			{"x", "Delete selected task"},
 			{"u", "Undo last action"},
+			{"r", "Redo last undone action"},
 			{"Ctrl+s", "Save session"},
 			{"/", "Filter mode"},
 			{"esc", "Back to session menu"},
@@ -643,7 +678,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.form.Init()
 			case "u":
 				m.undo()
-				m.autoSave()
+			case "r":
+				m.redo()
 			case "ctrl+s":
 				m.autoSave()
 				m.toast = &Toast{text: "Session saved."}
@@ -678,15 +714,24 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case Task:
 		task := msg
 		idx := len(m.lists[task.status].Items())
-		m.pushUndo(func() {
+		removeAt := func() {
 			items := m.lists[task.status].Items()
 			if idx < len(items) {
 				if t, ok := items[idx].(Task); ok && t.Title() == task.Title() {
 					m.lists[task.status].RemoveItem(idx)
 				}
 			}
-			m.autoSave()
-		})
+		}
+		m.pushUndo(
+			removeAt,
+			func() {
+				items := m.lists[task.status].Items()
+				if idx <= len(items) {
+					m.lists[task.status].InsertItem(idx, task)
+					m.lists[task.status].Select(idx)
+				}
+			},
+		)
 		if m.mode == creation {
 			m.mode = normal
 		}
