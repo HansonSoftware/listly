@@ -38,7 +38,7 @@ type Model struct {
 	isDaily       bool
 	welcomeIdx    int
 	sessions      []Session
-	confirmDelete bool
+	confirm *ConfirmDialog
 	width         int
 	height        int
 	store         Store
@@ -186,6 +186,9 @@ func (m *Model) recreateLists() {
 func (m Model) View() tea.View {
 	switch m.mode {
 	case welcome:
+		if m.confirm != nil {
+			return m.confirm.View()
+		}
 		v := tea.NewView(m.welcomeView())
 		v.AltScreen = true
 		v.WindowTitle = "Listly"
@@ -212,6 +215,9 @@ func (m Model) View() tea.View {
 		v.WindowTitle = "Listly"
 		return v
 	case normal, filtering:
+		if m.confirm != nil {
+			return m.confirm.View()
+		}
 		v := tea.NewView(m.mainView())
 		v.AltScreen = true
 		v.WindowTitle = "Listly"
@@ -254,11 +260,7 @@ func (m Model) welcomeView() string {
 	}
 
 	lines = append(lines, "")
-	if m.confirmDelete && len(m.sessions) > 0 {
-		lines = append(lines, lipgloss.NewStyle().Foreground(ColorError).Render("Delete '"+m.sessions[m.welcomeIdx].Name+"'? Press x again to confirm, any other key to cancel"))
-	} else {
-		lines = append(lines, WelcomeHelpStyle.Render("[↑/↓] Navigate  [enter] Open  [n] New  [d] Daily  [x] Delete  [q] Quit"))
-	}
+	lines = append(lines, WelcomeHelpStyle.Render("[↑/↓] Navigate  [enter] Open  [n] New  [d] Daily  [x] Delete  [q] Quit"))
 
 	content := lipgloss.JoinVertical(lipgloss.Left, lines...)
 	if m.err != nil {
@@ -379,12 +381,19 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.sessionForm.width = msg.Width
 			m.sessionForm.height = msg.Height
 		}
+		if m.confirm != nil {
+			m.confirm.width = msg.Width
+			m.confirm.height = msg.Height
+		}
 
 	case sessionsLoadedMsg:
 		m.sessions = msg.sessions
 		m.welcomeIdx = 0
 
 	case tea.KeyPressMsg:
+		if m.confirm != nil {
+			return m, m.confirm.Update(msg)
+		}
 		switch m.mode {
 		case creation:
 			if m.form != nil {
@@ -395,9 +404,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.sessionForm.Update(msg)
 			}
 		case welcome:
-			if msg.String() != "x" {
-				m.confirmDelete = false
-			}
 			switch msg.String() {
 			case "ctrl+c", "q":
 				m.shutdown = true
@@ -446,21 +452,25 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.mode = normal
 				m.loadSessionTasks(id)
 			case "x":
-				if m.confirmDelete && len(m.sessions) > 0 {
-					s := m.sessions[m.welcomeIdx]
-					if err := m.store.DeleteSession(s.ID); err != nil {
-						m.err = err
-						m.confirmDelete = false
-						return m, nil
-					}
-					m.confirmDelete = false
-					if m.welcomeIdx > 0 && m.welcomeIdx >= len(m.sessions)-1 {
-						m.welcomeIdx--
-					}
-					return m, m.loadSessions
-				}
 				if len(m.sessions) > 0 {
-					m.confirmDelete = true
+					s := m.sessions[m.welcomeIdx]
+					m.confirm = NewConfirmDialog(
+						"Delete session '"+s.Name+"'?",
+						func() tea.Cmd {
+							m.confirm = nil
+							if err := m.store.DeleteSession(s.ID); err != nil {
+								m.err = err
+								return nil
+							}
+							if m.welcomeIdx > 0 && m.welcomeIdx >= len(m.sessions)-1 {
+								m.welcomeIdx--
+							}
+							return m.loadSessions
+						},
+						func() { m.confirm = nil },
+					)
+					m.confirm.width = m.width
+					m.confirm.height = m.height
 				}
 			}
 
@@ -475,8 +485,21 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.Next()
 			case "enter":
 				m.MoveToNext()
-			case "d":
-				m.DeleteTask()
+			case "x":
+				if m.lists[m.focused].SelectedItem() != nil {
+					task := m.lists[m.focused].SelectedItem().(Task)
+					m.confirm = NewConfirmDialog(
+						"Delete task '"+task.Title()+"'?",
+						func() tea.Cmd {
+							m.confirm = nil
+							m.DeleteTask()
+							return nil
+						},
+						func() { m.confirm = nil },
+					)
+					m.confirm.width = m.width
+					m.confirm.height = m.height
+				}
 			case "?":
 				m.mode = help
 			case "/":

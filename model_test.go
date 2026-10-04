@@ -143,27 +143,27 @@ func TestWelcomeMode_DeleteSessionConfirm(t *testing.T) {
 	m := New(store)
 	m.Update(sessionsLoadedMsg{[]Session{{ID: idA, Name: "A"}, {ID: idB, Name: "B"}}})
 
-	// First x arms the confirmation; nothing deleted yet.
+	// First x opens the confirm dialog; nothing deleted yet.
 	m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
-	if !m.confirmDelete {
-		t.Fatal("expected confirmDelete after first x")
+	if m.confirm == nil {
+		t.Fatal("expected confirm dialog after first x")
 	}
 	if n := sessionCount(t, store); n != 2 {
 		t.Fatalf("expected 2 sessions, got %d", n)
 	}
 
-	// A different key cancels the confirmation.
+	// A different key cancels the dialog.
 	m.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
-	if m.confirmDelete {
-		t.Fatal("expected confirmDelete cleared by other key")
+	if m.confirm != nil {
+		t.Fatal("expected confirm dialog cleared by other key")
 	}
 
-	// Arm again, then confirm deletes the selected session and reloads.
+	// Arm again, then x inside the dialog confirms: session deleted.
 	m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
 	updated, cmd := m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
 	u := updated.(*Model)
-	if u.confirmDelete {
-		t.Fatal("expected confirmDelete cleared after confirm")
+	if u.confirm != nil {
+		t.Fatal("expected confirm dialog cleared after confirm")
 	}
 	if n := sessionCount(t, store); n != 1 {
 		t.Fatalf("expected 1 session after delete, got %d", n)
