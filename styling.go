@@ -104,31 +104,20 @@ var (
 			Bold(true).
 			MarginBottom(1)
 
-	InputStyle = lipgloss.NewStyle().
-			Foreground(ColorFg).
-			Background(ColorBg).
-			Padding(0, 1).
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(ColorBorder)
-
-	FocusedInputStyle = lipgloss.NewStyle().
-				Foreground(ColorFg).
-				Background(ColorBg).
-				Padding(0, 1).
-				Border(lipgloss.RoundedBorder()).
-				BorderForeground(ColorPrimary)
+	// ToastStyle is the compact variant of CardStyle for corner overlays.
+	ToastStyle = lipgloss.NewStyle().
+		Padding(0, 1).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(ColorPrimary).
+		Background(ColorCardBg)
 
 	TextAreaStyle = lipgloss.NewStyle().
-			Foreground(ColorFg).
-			Background(ColorBg).
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(ColorBorder)
+		Foreground(ColorFg).
+		Background(ColorBg)
 
 	FocusedTextAreaStyle = lipgloss.NewStyle().
-				Foreground(ColorFg).
-				Background(ColorBg).
-				Border(lipgloss.RoundedBorder()).
-				BorderForeground(ColorPrimary)
+		Foreground(ColorFg).
+		Background(ColorBg)
 
 	// Welcome screen styles
 	WelcomeTitleStyle = lipgloss.NewStyle().

@@ -37,6 +37,7 @@ type Model struct {
 	sessionID   int64
 	sessionName string
 	isDaily     bool
+	toast       *Toast
 	welcomeIdx  int
 	sessions    []Session
 	confirm     *ConfirmDialog
@@ -185,6 +186,18 @@ func (m *Model) recreateLists() {
 }
 
 func (m Model) View() tea.View {
+	v := m.view()
+	if m.toast != nil {
+		y := m.height - m.toast.Height() - 1
+		if y < 0 {
+			y = 0
+		}
+		v.Content = overlay(v.Content, m.toast.Render(), 1, y)
+	}
+	return v
+}
+
+func (m Model) view() tea.View {
 	switch m.mode {
 	case welcome:
 		if m.confirm != nil {
@@ -261,7 +274,7 @@ func (m Model) welcomeView() string {
 	}
 
 	lines = append(lines, "")
-	lines = append(lines, WelcomeHelpStyle.Render("[↑/↓] Navigate  [enter] Open  [n] New  [d] Daily  [x] Delete  [q] Quit"))
+	lines = append(lines, WelcomeHelpStyle.Render("[↑/↓] Navigate  [enter] Open  [n] New  [d] Daily  [r] Rename  [x] Delete  [q] Quit"))
 
 	content := lipgloss.JoinVertical(lipgloss.Left, lines...)
 	if m.err != nil {
@@ -395,6 +408,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.sessions = msg.sessions
 		m.welcomeIdx = 0
 
+	case toastMsg:
+		m.toast = nil
+
 	case tea.KeyPressMsg:
 		if m.confirm != nil {
 			return m, m.confirm.Update(msg)
@@ -433,17 +449,18 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "n":
 				m.returnMode = welcome
 				m.mode = saving
-				m.sessionForm = NewSessionNameForm(
-					func(name string) {
+				m.sessionForm = NewSessionNameForm("Create New Session",
+					func(name string) tea.Cmd {
 						id, err := m.store.CreateSession(name)
 						if err != nil {
 							m.err = err
-							return
+							return nil
 						}
 						m.sessionID = id
 						m.isDaily = false
 						m.sessionName = name
 						m.mode = normal
+						return nil
 					},
 					func() { m.mode = m.returnMode },
 				)
@@ -459,6 +476,30 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.isDaily = true
 				m.mode = normal
 				m.loadSessionTasks(id)
+			case "r":
+				if len(m.sessions) > 0 {
+					s := m.sessions[m.welcomeIdx]
+					m.returnMode = welcome
+					m.mode = saving
+					m.sessionForm = NewSessionNameForm("Rename Session",
+						func(name string) tea.Cmd {
+							if err := m.store.UpdateSessionName(s.ID, name); err != nil {
+								m.err = err
+								return nil
+							}
+							if m.sessionID == s.ID {
+								m.sessionName = name
+							}
+							m.mode = welcome
+							m.toast = &Toast{text: "Session renamed."}
+							return tea.Batch(m.loadSessions, toastTick())
+						},
+						func() { m.mode = m.returnMode },
+					)
+					m.sessionForm.width = m.width
+					m.sessionForm.height = m.height
+					return m, nil
+				}
 			case "x":
 				if len(m.sessions) > 0 {
 					s := m.sessions[m.welcomeIdx]
@@ -522,6 +563,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				f.width = m.width
 				f.height = m.height
 				f.onCancel = func() { m.mode = normal }
+				f.onToast = func(text string) { m.toast = &Toast{text: text} }
 				m.form = f
 				m.mode = creation
 				return m, m.form.Init()
@@ -529,32 +571,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.undo()
 				m.autoSave()
 			case "ctrl+s":
-				m.returnMode = normal
-				m.mode = saving
-				m.sessionForm = NewSessionNameForm(
-					func(name string) {
-						if m.sessionID == 0 {
-							id, err := m.store.CreateSession(name)
-							if err != nil {
-								m.err = err
-								return
-							}
-							m.sessionID = id
-						} else {
-							// Update existing session name
-							err := m.store.UpdateSessionName(m.sessionID, name)
-							if err != nil {
-								m.err = err
-								return
-							}
-						}
-						m.mode = normal
-						m.sessionName = name
-						m.autoSave()
-					},
-					func() { m.mode = m.returnMode },
-				)
-				return m, nil
+				m.autoSave()
+				m.toast = &Toast{text: "Session saved."}
+				return m, toastTick()
 			}
 
 		case filtering:

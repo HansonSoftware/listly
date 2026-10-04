@@ -1,6 +1,8 @@
 package main
 
 import (
+	"strings"
+
 	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/textinput"
 	"charm.land/lipgloss/v2"
@@ -15,6 +17,7 @@ type Form struct {
 	width       int
 	height      int
 	onCancel    func()
+	onToast     func(string)
 }
 
 func NewForm(focused status) *Form {
@@ -40,8 +43,8 @@ func NewForm(focused status) *Form {
 	dStyles.Blurred.Placeholder = lipgloss.NewStyle().Foreground(ColorMuted)
 	form.description.SetStyles(dStyles)
 
-	form.title.SetWidth(56)
-	form.description.SetWidth(56)
+	form.title.SetWidth(54)
+	form.description.SetWidth(54)
 	form.description.SetHeight(5)
 
 	return form
@@ -63,17 +66,23 @@ func (m *Form) Update(msg tea.Msg) tea.Cmd {
 			}
 			return nil
 		case "enter":
+			if strings.TrimSpace(m.title.Value()) == "" {
+				if m.onToast != nil {
+					m.onToast("Please enter a task name.")
+				}
+				return toastTick()
+			}
+			f := *m
+			return f.CreateTask
+		case "tab", "shift+tab":
 			if m.title.Focused() {
 				m.title.Blur()
 				m.description.Focus()
-				return textarea.Blink
 			} else {
-				f := *m
-				return f.CreateTask
+				m.description.Blur()
+				m.title.Focus()
 			}
-		case "tab", "shift+tab":
-			// Prevent tab from switching columns while in form
-			return nil
+			return textarea.Blink
 		}
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -98,17 +107,7 @@ func (m Form) View() tea.View {
 	titleInput := m.title.View()
 	descInput := m.description.View()
 
-	focusedField := "title"
-	if m.description.Focused() {
-		focusedField = "description"
-	}
-
-	var help string
-	if focusedField == "title" {
-		help = "Enter: next field  •  Esc: cancel"
-	} else {
-		help = "Enter: create task  •  Esc: cancel"
-	}
+	help := "Enter: create • Tab: switch • Esc: cancel"
 
 	content := lipgloss.JoinVertical(lipgloss.Left,
 		CardTitleStyle.Render("New Task"),
@@ -131,15 +130,16 @@ func (m Form) View() tea.View {
 
 // SessionNameForm is a simple form for entering a session name
 type SessionNameForm struct {
+	title    string
 	name     textinput.Model
-	onSave   func(string)
+	onSave   func(string) tea.Cmd
 	onCancel func()
 	width    int
 	height   int
 }
 
-func NewSessionNameForm(onSave func(string), onCancel func()) *SessionNameForm {
-	f := &SessionNameForm{onSave: onSave, onCancel: onCancel}
+func NewSessionNameForm(title string, onSave func(string) tea.Cmd, onCancel func()) *SessionNameForm {
+	f := &SessionNameForm{title: title, onSave: onSave, onCancel: onCancel}
 	f.name = textinput.New()
 	f.name.Placeholder = "Session name"
 	f.name.Focus()
@@ -172,7 +172,7 @@ func (m *SessionNameForm) Update(msg tea.Msg) tea.Cmd {
 			name := m.name.Value()
 			if name != "" {
 				if m.onSave != nil {
-					m.onSave(name)
+					return m.onSave(name)
 				}
 			} else if m.onCancel != nil {
 				m.onCancel()
@@ -192,7 +192,7 @@ func (m SessionNameForm) View() tea.View {
 	input := m.name.View()
 
 	content := lipgloss.JoinVertical(lipgloss.Left,
-		CardTitleStyle.Render("Save Session"),
+		CardTitleStyle.Render(m.title),
 		"",
 		"Name:",
 		input,
