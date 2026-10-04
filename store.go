@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -18,6 +19,21 @@ type Store interface {
 	UpdateSessionName(listID int64, name string) error
 	DeleteSession(listID int64) error
 	Close() error
+}
+
+type Session struct {
+	ID        int64
+	Name      string
+	CreatedAt string
+	IsDaily   bool
+}
+
+type DBTask struct {
+	ID          int64
+	ListID      int64
+	Status      int
+	Title       string
+	Description string
 }
 
 type sqliteStore struct {
@@ -68,7 +84,8 @@ func createTables(db *sql.DB) error {
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			name TEXT NOT NULL,
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-			is_daily INTEGER DEFAULT 0
+			is_daily INTEGER DEFAULT 0,
+			daily_date TEXT
 		);
 	`
 	if _, err := db.Exec(listsTable); err != nil {
@@ -79,6 +96,11 @@ func createTables(db *sql.DB) error {
 	// TODO(1.0.0): remove this migration — 1.0.0 users start with a fresh DB
 	// where is_daily already exists in the CREATE TABLE above.
 	db.Exec(`ALTER TABLE lists ADD COLUMN is_daily INTEGER DEFAULT 0`)
+
+	// Migration: add daily_date column if missing
+	// TODO(1.0.0): remove this migration — fresh 1.0.0 DBs have daily_date
+	// in the CREATE TABLE above.
+	db.Exec(`ALTER TABLE lists ADD COLUMN daily_date TEXT`)
 
 	tasksTable := `
 		CREATE TABLE IF NOT EXISTS tasks (
@@ -139,15 +161,34 @@ func (s *sqliteStore) CreateSession(name string) (int64, error) {
 
 func (s *sqliteStore) GetDailySession() (int64, error) {
 	var id int64
-	err := s.db.QueryRow(`SELECT id FROM lists WHERE is_daily = 1 LIMIT 1`).Scan(&id)
+	var dailyDate sql.NullString
+	err := s.db.QueryRow(`SELECT id, daily_date FROM lists WHERE is_daily = 1 LIMIT 1`).Scan(&id, &dailyDate)
 	if err == nil {
+		today := time.Now().Format("2006-01-02")
+		if dailyDate.String != today {
+			// New day: clear yesterday's tasks and stamp today.
+			tx, err := s.db.Begin()
+			if err != nil {
+				return 0, err
+			}
+			defer tx.Rollback()
+			if _, err := tx.Exec(`DELETE FROM tasks WHERE list_id = ?`, id); err != nil {
+				return 0, err
+			}
+			if _, err := tx.Exec(`UPDATE lists SET daily_date = ? WHERE id = ?`, today, id); err != nil {
+				return 0, err
+			}
+			if err := tx.Commit(); err != nil {
+				return 0, err
+			}
+		}
 		return id, nil
 	}
 	if err != sql.ErrNoRows {
 		return 0, err
 	}
 
-	result, err := s.db.Exec(`INSERT INTO lists (name, is_daily) VALUES (?, 1)`, "Daily")
+	result, err := s.db.Exec(`INSERT INTO lists (name, is_daily, daily_date) VALUES (?, 1, ?)`, "Daily", time.Now().Format("2006-01-02"))
 	if err != nil {
 		return 0, err
 	}
@@ -245,21 +286,6 @@ func getDBPath() string {
 		home = os.Getenv("HOME")
 	}
 	return filepath.Join(home, ".local/share/listly", "listly.db")
-}
-
-type Session struct {
-	ID        int64
-	Name      string
-	CreatedAt string
-	IsDaily   bool
-}
-
-type DBTask struct {
-	ID          int64
-	ListID      int64
-	Status      int
-	Title       string
-	Description string
 }
 
 var _ Store = (*sqliteStore)(nil) // Compile-time interface check

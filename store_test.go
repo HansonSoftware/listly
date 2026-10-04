@@ -55,6 +55,54 @@ func TestSQLiteStore_DailySession(t *testing.T) {
 	}
 }
 
+func TestSQLiteStore_DailySessionResetsOnNewDay(t *testing.T) {
+	store, err := NewStoreWithPath(":memory:")
+	if err != nil {
+		t.Fatalf("NewStoreWithPath failed: %v", err)
+	}
+	defer store.Close()
+
+	id, err := store.GetDailySession()
+	if err != nil {
+		t.Fatalf("GetDailySession failed: %v", err)
+	}
+	if err := store.SaveSession(id, []Task{NewTask(todo, "Yesterday", "")}); err != nil {
+		t.Fatalf("SaveSession failed: %v", err)
+	}
+
+	// Age the session to yesterday.
+	sq := store.(*sqliteStore)
+	if _, err := sq.db.Exec(`UPDATE lists SET daily_date = '2000-01-01' WHERE id = ?`, id); err != nil {
+		t.Fatalf("failed to age daily_date: %v", err)
+	}
+
+	id2, err := store.GetDailySession()
+	if err != nil {
+		t.Fatalf("GetDailySession failed: %v", err)
+	}
+	if id2 != id {
+		t.Errorf("Expected same daily id, got %d != %d", id2, id)
+	}
+
+	tasks, err := store.LoadSession(id)
+	if err != nil {
+		t.Fatalf("LoadSession failed: %v", err)
+	}
+	if len(tasks) != 0 {
+		t.Errorf("Expected tasks cleared on new day, got %d", len(tasks))
+	}
+
+	// Same-day reload keeps tasks.
+	if err := store.SaveSession(id, []Task{NewTask(todo, "Today", "")}); err != nil {
+		t.Fatalf("SaveSession failed: %v", err)
+	}
+	id3, _ := store.GetDailySession()
+	tasks, _ = store.LoadSession(id3)
+	if len(tasks) != 1 || tasks[0].Title() != "Today" {
+		t.Errorf("Same-day tasks should persist, got %v", tasks)
+	}
+}
+
 func TestSQLiteStore_SaveAndLoadSession(t *testing.T) {
 	store, err := NewStoreWithPath(":memory:")
 	if err != nil {
