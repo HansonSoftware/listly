@@ -63,4 +63,4 @@ go build
 ./listly
 ```
 
-Requires Go 1.23+ and a C compiler (for SQLite).
+Requires Go 1.27+.
