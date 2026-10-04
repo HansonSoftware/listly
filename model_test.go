@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"charm.land/bubbles/v2/list"
@@ -47,7 +48,7 @@ func TestWelcomeMode_EnterOpensSession(t *testing.T) {
 	m.sessions = []Session{{ID: 1, Name: "S", IsDaily: false}}
 
 	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	got := updated.(Model)
+	got := updated.(*Model)
 
 	if got.mode != normal {
 		t.Errorf("mode = %v, want %v (normal)", got.mode, normal)
@@ -76,6 +77,58 @@ func TestUpdate_KeyBeforeWindowSizeDoesNotPanic(t *testing.T) {
 	}()
 	m.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
 	// Reaching here without a panic is the assertion.
+}
+
+func TestMainView_HelpBarVisible(t *testing.T) {
+	store, err := NewStoreWithPath(":memory:")
+	if err != nil {
+		t.Fatalf("NewStoreWithPath failed: %v", err)
+	}
+	defer store.Close()
+	m := newTestModel(NewTask(todo, "A", ""))
+	m.store = store
+	m.mode = normal
+
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+
+	content := m.View().Content
+	if !strings.Contains(content, "Enter: move task") {
+		t.Errorf("help bar missing from mainView:\n%s", content)
+	}
+	lines := strings.Count(content, "\n") + 1
+	if lines > 30 {
+		t.Errorf("mainView produced %d lines, exceeds terminal height 30", lines)
+	}
+}
+
+func TestCreationMode_EscReturnsToNormal(t *testing.T) {
+	store, err := NewStoreWithPath(":memory:")
+	if err != nil {
+		t.Fatalf("NewStoreWithPath failed: %v", err)
+	}
+	defer store.Close()
+	id, _ := store.CreateSession("Esc Test")
+
+	m := newTestModel(NewTask(todo, "A", ""))
+	m.store = store
+	m.sessionID = id
+	m.isDaily = false
+	m.loaded = true
+	m.mode = normal
+
+	// Open the new-task form.
+	if _, cmd := m.Update(tea.KeyPressMsg{Code: 'n', Text: "n"}); cmd == nil {
+		t.Fatal("expected blink cmd from form init")
+	}
+	if m.mode != creation {
+		t.Fatalf("mode = %v, want creation", m.mode)
+	}
+
+	// Esc must cancel back to normal.
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	if m.mode != normal {
+		t.Fatalf("mode = %v after esc, want normal", m.mode)
+	}
 }
 
 func TestDailySession_AutoSaves(t *testing.T) {
@@ -185,7 +238,7 @@ func TestTaskMsg_UndoRemovesInsertedTask(t *testing.T) {
 	newTask := NewTask(todo, "Fresh", "desc")
 	msg := tea.Msg(newTask)
 	updated, _ := m.Update(msg.(Task))
-	*m = updated.(Model)
+	_ = updated
 
 	items := m.lists[todo].Items()
 	if len(items) != 2 {

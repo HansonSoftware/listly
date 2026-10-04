@@ -30,8 +30,10 @@ func ColumnLayout(width, height int) Layout {
 	if colContentWidth < 10 {
 		colContentWidth = 10
 	}
-	// Height: minus help bar(1) + top margin(1) + title(2) + column padding(4)
-	colHeight := height - 8
+	// Height: board top margin(1) + title(2) + column padding+border(4) +
+	// list = ColHeight, help bar top margin(1) + help line(1),
+	// and one spare line of breathing room.
+	colHeight := height - 9
 	if colHeight < 10 {
 		colHeight = 10
 	}

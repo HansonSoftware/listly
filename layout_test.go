@@ -60,9 +60,10 @@ func TestColumnLayout_MinimumWidth(t *testing.T) {
 }
 
 func TestColumnLayout_HeightOverhead(t *testing.T) {
-	// Height should account for help bar(1) + margin(1) + title(2) + column padding(4) = 8
+	// Height should account for board margin(1) + title(2) + column
+	// padding/border(4) + help margin(1) + help line(1) = 9
 	l := ColumnLayout(100, 30)
-	expected := 30 - 8
+	expected := 30 - 9
 	if l.ColHeight != expected {
 		t.Errorf("ColHeight = %d, want %d", l.ColHeight, expected)
 	}

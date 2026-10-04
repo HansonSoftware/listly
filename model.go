@@ -304,7 +304,7 @@ func (m Model) mainView() string {
 
 	board = lipgloss.NewStyle().MarginTop(1).Render(board)
 
-	help := HelpStyle.Width(m.width).Render("←/→/Tab: switch columns  •  Enter: move task  •  n: new  •  d: delete  •  u: undo  •  Ctrl+s: save  •  /: filter  •  ?: help  •  q: quit")
+	help := HelpStyle.Render("←/→/Tab: switch columns  •  Enter: move task  •  n: new  •  d: delete  •  u: undo  •  Ctrl+s: save  •  /: filter  •  ?: help  •  q: quit")
 
 	parts := []string{board, help}
 	if m.err != nil {
@@ -357,7 +357,7 @@ func (m *Model) loadSessionTasks(sessionID int64) {
 	}
 }
 
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
