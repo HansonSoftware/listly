@@ -125,18 +125,17 @@ func (m *Model) DeleteTask() tea.Msg {
 func (m *Model) MoveToNext() tea.Msg {
 	if m.lists[m.focused].SelectedItem() != nil {
 		selectedItem := m.lists[m.focused].SelectedItem()
-		selectedTask := selectedItem.(Task)
+		before := selectedItem.(Task)
 		idx := m.lists[m.focused].Index()
-		m.lists[selectedTask.status].RemoveItem(idx)
-		selectedTask.Next()
-		newIdx := len(m.lists[selectedTask.status].Items())
-		m.lists[selectedTask.status].InsertItem(newIdx, list.Item(selectedTask))
+		after := before
+		after.Next()
+		m.lists[before.status].RemoveItem(idx)
+		newIdx := len(m.lists[after.status].Items())
+		m.lists[after.status].InsertItem(newIdx, list.Item(after))
 		m.pushUndo(func() {
-			m.lists[selectedTask.status].RemoveItem(newIdx)
-			selectedTask.Next()
-			selectedTask.Next()
-			selectedTask.Next()
-			m.lists[selectedTask.status].InsertItem(idx, list.Item(selectedTask))
+			m.lists[after.status].RemoveItem(newIdx)
+			m.lists[before.status].InsertItem(idx, list.Item(before))
+			m.lists[before.status].Select(idx)
 			if !m.isDaily {
 				m.autoSave()
 			}
