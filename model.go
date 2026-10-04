@@ -155,7 +155,7 @@ func (m *Model) autoSave() {
 		return
 	}
 	tasks := m.getAllTasks()
-	m.store.SaveSession(m.sessionID, tasks)
+	m.err = m.store.SaveSession(m.sessionID, tasks)
 }
 
 func (m *Model) getAllTasks() []Task {
@@ -239,6 +239,9 @@ func (m Model) welcomeView() string {
 	lines = append(lines, WelcomeHelpStyle.Render("[↑/↓] Navigate  [enter] Open  [n] New  [d] Daily  [q] Quit"))
 
 	content := lipgloss.JoinVertical(lipgloss.Left, lines...)
+	if m.err != nil {
+		content = ErrorBannerStyle.Render("Error: "+m.err.Error()) + "\n" + content
+	}
 	return CenterIn(m.width, m.height, content)
 }
 
@@ -286,7 +289,11 @@ func (m Model) mainView() string {
 
 	help := HelpStyle.Width(m.width).Render("←/→/Tab: switch columns  •  Enter: move task  •  n: new  •  d: delete  •  u: undo  •  Ctrl+s: save  •  /: filter  •  ?: help  •  q: quit")
 
-	return lipgloss.JoinVertical(lipgloss.Left, board, help)
+	parts := []string{board, help}
+	if m.err != nil {
+		parts = append([]string{ErrorBannerStyle.Render("Error: " + m.err.Error())}, parts...)
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, parts...)
 }
 
 func (m Model) helpView() string {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/charmbracelet/bubbles/list"
@@ -25,6 +26,39 @@ func newTestModel(tasks ...Task) *Model {
 		m.lists[i] = list.New(items, delegate, 40, 20)
 	}
 	return m
+}
+
+type failStore struct {
+	Store
+	err error
+}
+
+func (f failStore) SaveSession(int64, []Task) error { return f.err }
+
+func TestAutoSave_SurfacesErrors(t *testing.T) {
+	store, err := NewStoreWithPath(":memory:")
+	if err != nil {
+		t.Fatalf("NewStoreWithPath failed: %v", err)
+	}
+	defer store.Close()
+	id, _ := store.CreateSession("Err Test")
+
+	m := newTestModel(NewTask(todo, "A", ""))
+	m.isDaily = false
+	m.sessionID = id
+	m.store = failStore{Store: store, err: fmt.Errorf("disk full")}
+
+	m.autoSave()
+	if m.err == nil || m.err.Error() != "disk full" {
+		t.Fatalf("expected m.err to surface save failure, got %v", m.err)
+	}
+
+	// A successful save clears the error.
+	m.store = store
+	m.autoSave()
+	if m.err != nil {
+		t.Fatalf("expected m.err cleared after successful save, got %v", m.err)
+	}
 }
 
 func TestMoveToNext_UndoRestoresOriginalColumn(t *testing.T) {

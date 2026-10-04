@@ -148,6 +148,12 @@ var (
 			Foreground(ColorMuted).
 			MarginTop(1)
 
+	// ErrorBannerStyle surfaces persistence errors to the user
+	ErrorBannerStyle = lipgloss.NewStyle().
+		Foreground(ColorError).
+		Bold(true).
+		Padding(0, 1)
+
 	// Status indicators
 	StatusTodoStyle = lipgloss.NewStyle().
 			Foreground(ColorPrimary).
