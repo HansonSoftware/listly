@@ -61,7 +61,7 @@ func TestColumnLayout_MinimumWidth(t *testing.T) {
 
 func TestColumnLayout_HeightOverhead(t *testing.T) {
 	// Height should account for session title(1) + board margin(1) + column
-	// title(2) + column padding/border(4) + help margin(1) + help line(1) = 10
+	// title(2) + column padding/border(4) + help margin(1) + list help(1) = 9
 	l := ColumnLayout(100, 30)
 	expected := 30 - 10
 	if l.ColHeight != expected {

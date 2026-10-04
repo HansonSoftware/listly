@@ -1,6 +1,8 @@
 package main
 
 import (
+	bubbleshelp "charm.land/bubbles/v2/help"
+	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/list"
 	"charm.land/lipgloss/v2"
 
@@ -27,27 +29,63 @@ const (
 )
 
 type Model struct {
-	lists       []list.Model
-	undoStack   *UndoStack
-	focused     status
-	loaded      bool
-	shutdown    bool
-	mode        mode
-	err         error
-	sessionID   int64
-	sessionName string
-	isDaily     bool
-	toast       *Toast
-	sessions    []Session
+	lists        []list.Model
+	undoStack    *UndoStack
+	focused      status
+	loaded       bool
+	shutdown     bool
+	mode         mode
+	err          error
+	sessionID    int64
+	sessionName  string
+	isDaily      bool
+	toast        *Toast
+	sessions     []Session
 	sessionsList list.Model
-	confirm     *ConfirmDialog
-	width       int
-	height      int
-	store       Store
-	form        *Form
-	sessionForm *SessionNameForm
-	returnMode  mode
+	confirm      *ConfirmDialog
+	width        int
+	height       int
+	store        Store
+	form         *Form
+	sessionForm  *SessionNameForm
+	returnMode   mode
 }
+
+func welcomeShortHelp() []key.Binding {
+	return []key.Binding{
+		key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "select")),
+		key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "new")),
+		key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "rename")),
+		key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "delete")),
+		key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "more")),
+	}
+}
+
+func boardShortHelp() []key.Binding {
+	return []key.Binding{
+		key.NewBinding(key.WithKeys("tab", "h", "l"), key.WithHelp("←/→/tab", "columns")),
+		key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "move")),
+		key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "new")),
+		key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "delete")),
+		key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "undo")),
+		key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
+		key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "sessions")),
+		key.NewBinding(key.WithKeys("q"), key.WithHelp("q", "quit")),
+	}
+}
+
+// boardFooter implements help.KeyMap so the shared help component can
+// render the board footer.
+type boardFooter struct{}
+
+func (boardFooter) ShortHelp() []key.Binding  { return boardShortHelp() }
+func (boardFooter) FullHelp() [][]key.Binding { return [][]key.Binding{boardShortHelp()} }
+
+// welcomeFooter implements help.KeyMap for the session menu footer.
+type welcomeFooter struct{}
+
+func (welcomeFooter) ShortHelp() []key.Binding  { return welcomeShortHelp() }
+func (welcomeFooter) FullHelp() [][]key.Binding { return [][]key.Binding{welcomeShortHelp()} }
 
 func New(store Store) *Model {
 	// Lists start with safe defaults; recreateLists replaces them with
@@ -56,10 +94,17 @@ func New(store Store) *Model {
 	for i := range lists {
 		lists[i] = list.New(nil, TaskDelegate{}, 40, 20)
 	}
+
+	sl := list.New(nil, SessionDelegate{}, lipgloss.Width(Logo), 8)
+	sl.Title = "Welcome!"
+	sl.SetStatusBarItemName("session", "sessions")
+	sl.SetShowHelp(false)
+	// Left-align the title bar (title + item count) with the logo/footer.
+	sl.Styles.TitleBar = lipgloss.NewStyle().Padding(0, 1).Margin(0)
 	return &Model{
 		mode:         welcome,
 		lists:        lists,
-		sessionsList: list.New(nil, list.NewDefaultDelegate(), 44, 8),
+		sessionsList: sl,
 		undoStack:    NewUndoStack(50),
 		store:        store,
 	}
@@ -245,7 +290,7 @@ func (m Model) view() tea.View {
 func (m Model) welcomeView() string {
 	if len(m.sessions) == 0 {
 		content := lipgloss.JoinVertical(lipgloss.Center,
-			WelcomeTitleStyle.Render("Welcome to Listly"),
+			LogoStyle.Render(Logo),
 			WelcomeSubtitleStyle.Render("No sessions yet. Create one to get started."),
 			"",
 			WelcomeHelpStyle.Render("[n] New session    [d] Daily session    [q] Quit"),
@@ -254,12 +299,11 @@ func (m Model) welcomeView() string {
 	}
 
 	var lines []string
-	lines = append(lines, WelcomeTitleStyle.Render("Welcome to Listly"))
-	lines = append(lines, WelcomeSubtitleStyle.Render("Select a session to continue"))
-	lines = append(lines, "")
+	lines = append(lines, LogoStyle.Render(Logo))
 	lines = append(lines, m.sessionsList.View())
-	lines = append(lines, "")
-	lines = append(lines, WelcomeHelpStyle.Render("[↑/↓] Navigate  [enter] Select  [n] New  [d] Daily  [r] Rename  [x] Delete  [q] Quit"))
+	wf := bubbleshelp.New()
+	wf.SetWidth(m.width)
+	lines = append(lines, lipgloss.NewStyle().Padding(0, 1).Render(wf.View(welcomeFooter{})))
 
 	content := lipgloss.JoinVertical(lipgloss.Left, lines...)
 	if m.err != nil {
@@ -311,9 +355,12 @@ func (m Model) mainView() string {
 	board = lipgloss.NewStyle().MarginTop(1).Render(board)
 
 	title := BoardTitleStyle.Render(m.sessionName)
-	help := lipgloss.NewStyle().Padding(0, 1).Render(HelpStyle.Render("←/→/Tab: columns  •  Enter: move  •  n: new  •  x: delete  •  u: undo  •  /: filter  •  ?: keybinds  •  esc: sessions  •  q: quit"))
 
-	parts := []string{title, board, help}
+	hf := bubbleshelp.New()
+	hf.SetWidth(m.width)
+	footer := lipgloss.NewStyle().Padding(0, 1).Render(hf.View(boardFooter{}))
+
+	parts := []string{title, board, footer}
 	if m.err != nil {
 		parts = append([]string{ErrorBannerStyle.Render("Error: " + m.err.Error())}, parts...)
 	}
@@ -321,20 +368,41 @@ func (m Model) mainView() string {
 }
 
 func (m Model) helpView() string {
-	keybinds := []struct {
+	var keybinds []struct {
 		key  string
 		desc string
-	}{
-		{"h / ← / Shift+Tab", "Previous column"},
-		{"l / → / Tab", "Next column"},
-		{"Enter", "Move task to next column"},
-		{"d", "Delete selected task"},
-		{"n", "New task"},
-		{"u", "Undo last action"},
-		{"Ctrl+s", "Save session"},
-		{"/", "Filter mode"},
-		{"?", "Show this help"},
-		{"q / Ctrl+c", "Quit"},
+	}
+	if m.returnMode == welcome {
+		keybinds = []struct {
+			key  string
+			desc string
+		}{
+			{"↑ / k / ↓ / j", "Navigate sessions"},
+			{"Enter", "Open selected session"},
+			{"n", "Create new session"},
+			{"d", "Open daily session"},
+			{"r", "Rename selected session"},
+			{"x", "Delete selected session"},
+			{"?", "Show this help"},
+			{"q / Ctrl+c", "Quit"},
+		}
+	} else {
+		keybinds = []struct {
+			key  string
+			desc string
+		}{
+			{"h / ← / Shift+Tab", "Previous column"},
+			{"l / → / Tab", "Next column"},
+			{"Enter", "Move task to next column"},
+			{"n", "New task"},
+			{"x", "Delete selected task"},
+			{"u", "Undo last action"},
+			{"Ctrl+s", "Save session"},
+			{"/", "Filter mode"},
+			{"esc", "Back to session menu"},
+			{"?", "Show this help"},
+			{"q / Ctrl+c", "Quit"},
+		}
 	}
 
 	var lines []string
@@ -376,11 +444,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		m.recreateLists()
 		m.loaded = true
-		w := m.width / 2
-		if w < 20 {
-			w = 20
+		w := lipgloss.Width(Logo)
+		if w > m.width-2 {
+			w = m.width - 2
 		}
-		h := m.height - 16
+		h := m.height - lipgloss.Height(Logo) - 6
 		if h < 3 {
 			h = 3
 		}
@@ -439,6 +507,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.mode = normal
 					m.loadSessionTasks(s.ID)
 				}
+				return m, nil
+			case "?":
+				m.returnMode = welcome
+				m.mode = help
 				return m, nil
 			case "n", "d", "r", "x":
 			default:
@@ -555,6 +627,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.confirm.height = m.height
 				}
 			case "?":
+				m.returnMode = normal
 				m.mode = help
 			case "/":
 				m.mode = filtering
@@ -594,7 +667,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case help:
 			switch msg.String() {
 			case "?", "esc", "enter":
-				m.mode = normal
+				m.mode = m.returnMode
 				return m, nil
 			case "ctrl+c", "q":
 				m.shutdown = true

@@ -45,6 +45,31 @@ func (t *Task) Next() {
 	}
 }
 
+// Custom delegate for session list items
+type SessionDelegate struct{}
+
+func (d SessionDelegate) Height() int                             { return 1 }
+func (d SessionDelegate) Spacing() int                            { return 1 }
+func (d SessionDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
+func (d SessionDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
+	s, ok := item.(Session)
+	if !ok {
+		return
+	}
+
+	style := TaskStyle.Width(m.Width())
+	if index == m.Index() {
+		style = SelectedTaskStyle.Bold(true).Width(m.Width())
+	}
+
+	name := s.Name
+	if lipgloss.Width(name) > m.Width()-2 {
+		name = lipgloss.NewStyle().Width(m.Width() - 2).Render(name)
+	}
+
+	fmt.Fprint(w, style.Render(name))
+}
+
 // Custom delegate for task list items
 type TaskDelegate struct{}
 

@@ -28,15 +28,6 @@ type Session struct {
 	IsDaily   bool
 }
 
-func (s Session) Title() string { return s.Name }
-
-func (s Session) Description() string {
-	if s.IsDaily {
-		return "(daily)"
-	}
-	return ""
-}
-
 func (s Session) FilterValue() string { return s.Name }
 
 type DBTask struct {

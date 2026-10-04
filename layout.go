@@ -2,11 +2,11 @@ package main
 
 // Layout holds computed column dimensions
 type Layout struct {
-	BoardWidth      int // Total width available for all 3 columns
-	ColTotalWidth   int // Total width per column (including padding+border)
+	BoardWidth       int // Total width available for all 3 columns
+	ColTotalWidth    int // Total width per column (including padding+border)
 	ColInternalWidth int // Width for list internal rendering
-	ColContentWidth int // Width for MaxWidth constraint (title + list)
-	ColHeight       int // Height for list content
+	ColContentWidth  int // Width for MaxWidth constraint (title + list)
+	ColHeight        int // Height for list content
 }
 
 // ColumnLayout computes column dimensions from terminal size.
@@ -30,8 +30,8 @@ func ColumnLayout(width, height int) Layout {
 	if colContentWidth < 10 {
 		colContentWidth = 10
 	}
-	// Budget: session title line(1) + board top margin(1) + column title(2)
-	// + border/padding(4) + list content + help margin(1) + help line(1).
+	// Budget: session title(1) + board top margin(1) + column title(2)
+	// + column border/padding(4) + footer(1) + footer margin(1).
 	colHeight := height - 10
 	if colHeight < 10 {
 		colHeight = 10

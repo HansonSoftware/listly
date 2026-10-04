@@ -2,8 +2,8 @@ package main
 
 // UndoStack stores reverse operations for undo functionality
 type UndoStack struct {
-	ops   []func()
-	max   int
+	ops []func()
+	max int
 }
 
 // NewUndoStack creates a new undo stack with max capacity

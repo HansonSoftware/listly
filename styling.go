@@ -69,9 +69,9 @@ var (
 
 	// BoardTitleStyle is the session title shown above the board.
 	BoardTitleStyle = lipgloss.NewStyle().
-		Foreground(ColorPrimary).
-		Bold(true).
-		Padding(0, 1)
+			Foreground(ColorPrimary).
+			Bold(true).
+			Padding(0, 1)
 
 	// Task item styles
 	TaskStyle = lipgloss.NewStyle().
@@ -106,20 +106,36 @@ var (
 
 	// ToastStyle is the compact variant of CardStyle for corner overlays.
 	ToastStyle = lipgloss.NewStyle().
-		Padding(0, 1).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(ColorPrimary).
-		Background(ColorCardBg)
+			Padding(0, 1).
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(ColorPrimary).
+			Background(ColorCardBg)
 
 	TextAreaStyle = lipgloss.NewStyle().
-		Foreground(ColorFg).
-		Background(ColorBg)
+			Foreground(ColorFg).
+			Background(ColorBg)
 
 	FocusedTextAreaStyle = lipgloss.NewStyle().
-		Foreground(ColorFg).
-		Background(ColorBg)
+				Foreground(ColorFg).
+				Background(ColorBg)
 
-	// Welcome screen styles
+	// Thanks to https://www.asciiart.eu/text-to-ascii-art
+	Logo = `
+ ▄█        ▄█     ▄████████     ███      ▄█       ▄██   ▄  
+███       ███    ███    ███ ▀█████████▄ ███       ███   ██▄
+███              ███    █▀     ▀███▀▀██ ███       ███▄▄▄███
+███       ███▌   ███            ███   ▀ ███       ▀▀▀▀▀▀███
+███       ███▌ ▀███████████     ███     ███       ▄██   ███
+███       ███           ███     ███     ███       ███   ███
+███▌    ▄ ███     ▄█    ███     ███     ███▌    ▄ ███   ███
+█████▄▄██ █▀    ▄████████▀     ▄████▀   █████▄▄██  ▀█████▀ 
+▀                                       ▀                  
+`
+
+	// LogoStyle renders the wordmark.
+	LogoStyle = lipgloss.NewStyle().
+			Foreground(ColorPrimary).
+			Bold(true)
 	WelcomeTitleStyle = lipgloss.NewStyle().
 				Foreground(ColorPrimary).
 				Bold(true).

@@ -93,7 +93,7 @@ func TestMainView_HelpBarVisible(t *testing.T) {
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
 
 	content := m.View().Content
-	if !strings.Contains(content, "?: keybinds") {
+	if !strings.Contains(content, "delete") {
 		t.Errorf("help bar missing from mainView")
 	}
 	lines := strings.Count(content, "\n") + 1
