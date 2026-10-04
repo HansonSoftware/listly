@@ -47,11 +47,17 @@ type Model struct {
 }
 
 func New(store Store) *Model {
+	// Lists start with safe defaults; recreateLists replaces them with
+	// real items/dimensions on the first WindowSizeMsg.
+	lists := make([]list.Model, 3)
+	for i := range lists {
+		lists[i] = list.New(nil, TaskDelegate{}, 40, 20)
+	}
 	return &Model{
-		mode:  welcome,
-		lists: make([]list.Model, 3),
+		mode:      welcome,
+		lists:     lists,
 		undoStack: NewUndoStack(50),
-		store: store,
+		store:     store,
 	}
 }
 
@@ -358,12 +364,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		if !m.loaded {
-			m.recreateLists()
-			m.loaded = true
-		} else {
-			m.recreateLists()
-		}
+		m.recreateLists()
+		m.loaded = true
 		if m.form != nil && m.mode == creation {
 			m.form.width = msg.Width
 			m.form.height = msg.Height
@@ -528,10 +530,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.lists[task.status].InsertItem(idx, task)
 	}
 
-	// Update focused list
-	var cmd tea.Cmd
-	m.lists[m.focused], cmd = m.lists[m.focused].Update(msg)
-	cmds = append(cmds, cmd)
+	// Update focused list, but only when a board is visible — forwarding
+	// keys to a list while in welcome/help/saving/creation modes would
+	// silently mutate the board, and updating before recreateLists ran
+	// panicked on the zero-value list in v2.
+	if m.loaded && (m.mode == normal || m.mode == filtering) {
+		var cmd tea.Cmd
+		m.lists[m.focused], cmd = m.lists[m.focused].Update(msg)
+		cmds = append(cmds, cmd)
+	}
 
 	return m, tea.Batch(cmds...)
 }

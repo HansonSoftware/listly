@@ -60,6 +60,24 @@ func TestWelcomeMode_EnterOpensSession(t *testing.T) {
 	}
 }
 
+func TestUpdate_KeyBeforeWindowSizeDoesNotPanic(t *testing.T) {
+	store, err := NewStoreWithPath(":memory:")
+	if err != nil {
+		t.Fatalf("NewStoreWithPath failed: %v", err)
+	}
+	defer store.Close()
+	m := New(store)
+	// No WindowSizeMsg yet: m.loaded is false. A stray keypress must not
+	// panic (regression: v2 panics updating a zero-value list).
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("Update panicked on key before window size: %v", r)
+		}
+	}()
+	m.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
+	// Reaching here without a panic is the assertion.
+}
+
 func TestDailySession_AutoSaves(t *testing.T) {
 	store, err := NewStoreWithPath(":memory:")
 	if err != nil {
