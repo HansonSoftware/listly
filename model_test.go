@@ -12,7 +12,6 @@ import (
 func newTestModel(tasks ...Task) *Model {
 	m := &Model{
 		focused:      todo,
-		isDaily:      true, // skip store persistence in tests
 		histories:    histories{},
 		lists:        make([]list.Model, 3),
 		sessionsList: list.New(nil, list.NewDefaultDelegate(), 44, 8),
@@ -46,7 +45,7 @@ func TestWelcomeMode_EnterOpensSession(t *testing.T) {
 
 	m := newTestModel()
 	m.store = store
-	m.sessions = []Session{{ID: 1, Name: "S", IsDaily: false}}
+	m.sessions = []Session{{ID: 1, Name: "S"}}
 
 	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	got := updated.(*Model)
@@ -56,9 +55,6 @@ func TestWelcomeMode_EnterOpensSession(t *testing.T) {
 	}
 	if got.sessionID != 1 {
 		t.Errorf("sessionID = %d, want 1", got.sessionID)
-	}
-	if got.isDaily {
-		t.Errorf("isDaily = true, want false")
 	}
 }
 
@@ -134,7 +130,6 @@ func TestCreationMode_EscReturnsToNormal(t *testing.T) {
 	m := newTestModel(NewTask(todo, "A", ""))
 	m.store = store
 	m.sessionID = id
-	m.isDaily = false
 	m.loaded = true
 	m.mode = normal
 
@@ -215,16 +210,18 @@ func TestDailySession_AutoSaves(t *testing.T) {
 		t.Fatalf("NewStoreWithPath failed: %v", err)
 	}
 	defer store.Close()
-	id, _ := store.GetDailySession()
+	s, err := store.GetOrCreateDailySession()
+	if err != nil {
+		t.Fatalf("GetOrCreateDailySession failed: %v", err)
+	}
 
 	m := newTestModel(NewTask(todo, "Daily task", ""))
-	m.isDaily = true
-	m.sessionID = id
+	m.sessionID = s.ID
 	m.store = store
 
 	m.MoveToNext()
 
-	loaded, err := store.LoadSession(id)
+	loaded, err := store.LoadSession(s.ID)
 	if err != nil {
 		t.Fatalf("LoadSession failed: %v", err)
 	}
@@ -242,7 +239,6 @@ func TestAutoSave_SurfacesErrors(t *testing.T) {
 	id, _ := store.CreateSession("Err Test")
 
 	m := newTestModel(NewTask(todo, "A", ""))
-	m.isDaily = false
 	m.sessionID = id
 	m.store = failStore{Store: store, err: fmt.Errorf("disk full")}
 

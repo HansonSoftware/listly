@@ -13,7 +13,7 @@ import (
 type Store interface {
 	ListSessions() ([]Session, error)
 	CreateSession(name string) (int64, error)
-	GetDailySession() (int64, error)
+	GetOrCreateDailySession() (Session, error)
 	SaveSession(listID int64, tasks []Task) error
 	LoadSession(listID int64) ([]Task, error)
 	UpdateSessionName(listID int64, name string) error
@@ -25,7 +25,6 @@ type Session struct {
 	ID        int64
 	Name      string
 	CreatedAt string
-	IsDaily   bool
 }
 
 func (s Session) FilterValue() string { return s.Name }
@@ -85,24 +84,12 @@ func createTables(db *sql.DB) error {
 		CREATE TABLE IF NOT EXISTS lists (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			name TEXT NOT NULL,
-			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-			is_daily INTEGER DEFAULT 0,
-			daily_date TEXT
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		);
 	`
 	if _, err := db.Exec(listsTable); err != nil {
 		return err
 	}
-
-	// Migration: add is_daily column if missing
-	// TODO(1.0.0): remove this migration — 1.0.0 users start with a fresh DB
-	// where is_daily already exists in the CREATE TABLE above.
-	db.Exec(`ALTER TABLE lists ADD COLUMN is_daily INTEGER DEFAULT 0`)
-
-	// Migration: add daily_date column if missing
-	// TODO(1.0.0): remove this migration — fresh 1.0.0 DBs have daily_date
-	// in the CREATE TABLE above.
-	db.Exec(`ALTER TABLE lists ADD COLUMN daily_date TEXT`)
 
 	tasksTable := `
 		CREATE TABLE IF NOT EXISTS tasks (
@@ -122,10 +109,6 @@ func createTables(db *sql.DB) error {
 		return err
 	}
 
-	// One-time sweep of rows orphaned before DeleteSession cleaned up after
-	// itself. TODO(1.0.0): remove this — fresh 1.0.0 DBs never have orphans.
-	db.Exec(`DELETE FROM tasks WHERE list_id NOT IN (SELECT id FROM lists)`)
-
 	return nil
 }
 
@@ -134,7 +117,7 @@ func (s *sqliteStore) Close() error {
 }
 
 func (s *sqliteStore) ListSessions() ([]Session, error) {
-	rows, err := s.db.Query(`SELECT id, name, created_at, is_daily FROM lists ORDER BY created_at DESC`)
+	rows, err := s.db.Query(`SELECT id, name, created_at FROM lists ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -143,11 +126,9 @@ func (s *sqliteStore) ListSessions() ([]Session, error) {
 	var sessions []Session
 	for rows.Next() {
 		var sess Session
-		var isDaily int
-		if err := rows.Scan(&sess.ID, &sess.Name, &sess.CreatedAt, &isDaily); err != nil {
+		if err := rows.Scan(&sess.ID, &sess.Name, &sess.CreatedAt); err != nil {
 			return nil, err
 		}
-		sess.IsDaily = isDaily == 1
 		sessions = append(sessions, sess)
 	}
 	return sessions, rows.Err()
@@ -161,40 +142,32 @@ func (s *sqliteStore) CreateSession(name string) (int64, error) {
 	return result.LastInsertId()
 }
 
-func (s *sqliteStore) GetDailySession() (int64, error) {
-	var id int64
-	var dailyDate sql.NullString
-	err := s.db.QueryRow(`SELECT id, daily_date FROM lists WHERE is_daily = 1 LIMIT 1`).Scan(&id, &dailyDate)
+// GetOrCreateDailySession returns today's daily session, named like
+// "Oct 05 2026 TODO". Daily notes are ordinary sessions in the DB — no
+// special columns — so they autosave and behave like everything else.
+// Pressing "d" again on the same day reopens the same note; a new day
+// produces a new one (created lazily, only when "d" is pressed).
+func (s *sqliteStore) GetOrCreateDailySession() (Session, error) {
+	name := DailySessionName(time.Now())
+	var sess Session
+	err := s.db.QueryRow(`SELECT id, name, created_at FROM lists WHERE name = ? LIMIT 1`, name).
+		Scan(&sess.ID, &sess.Name, &sess.CreatedAt)
 	if err == nil {
-		today := time.Now().Format("2006-01-02")
-		if dailyDate.String != today {
-			// New day: clear yesterday's tasks and stamp today.
-			tx, err := s.db.Begin()
-			if err != nil {
-				return 0, err
-			}
-			defer tx.Rollback()
-			if _, err := tx.Exec(`DELETE FROM tasks WHERE list_id = ?`, id); err != nil {
-				return 0, err
-			}
-			if _, err := tx.Exec(`UPDATE lists SET daily_date = ? WHERE id = ?`, today, id); err != nil {
-				return 0, err
-			}
-			if err := tx.Commit(); err != nil {
-				return 0, err
-			}
-		}
-		return id, nil
+		return sess, nil
 	}
 	if err != sql.ErrNoRows {
-		return 0, err
+		return Session{}, err
 	}
-
-	result, err := s.db.Exec(`INSERT INTO lists (name, is_daily, daily_date) VALUES (?, 1, ?)`, "Daily", time.Now().Format("2006-01-02"))
+	id, err := s.CreateSession(name)
 	if err != nil {
-		return 0, err
+		return Session{}, err
 	}
-	return result.LastInsertId()
+	return Session{ID: id, Name: name}, nil
+}
+
+// DailySessionName is the canonical name of the daily note for t.
+func DailySessionName(t time.Time) string {
+	return t.Format("Jan 02 2006") + " TODO"
 }
 
 func (s *sqliteStore) SaveSession(listID int64, tasks []Task) error {

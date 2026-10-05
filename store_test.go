@@ -2,6 +2,7 @@ package main
 
 import (
 	"testing"
+	"time"
 )
 
 func TestSQLiteStore_CreateAndListSessions(t *testing.T) {
@@ -40,66 +41,53 @@ func TestSQLiteStore_DailySession(t *testing.T) {
 	}
 	defer store.Close()
 
-	id1, err := store.GetDailySession()
+	id1, err := store.GetOrCreateDailySession()
 	if err != nil {
-		t.Fatalf("GetDailySession failed: %v", err)
+		t.Fatalf("GetOrCreateDailySession failed: %v", err)
 	}
 
-	id2, err := store.GetDailySession()
+	id2, err := store.GetOrCreateDailySession()
 	if err != nil {
-		t.Fatalf("GetDailySession (2nd) failed: %v", err)
+		t.Fatalf("GetOrCreateDailySession (2nd) failed: %v", err)
 	}
 
-	if id1 != id2 {
-		t.Errorf("GetDailySession returned different IDs: %d != %d", id1, id2)
+	if id1.ID != id2.ID {
+		t.Errorf("GetOrCreateDailySession returned different IDs: %d != %d", id1.ID, id2.ID)
+	}
+	if id1.Name != DailySessionName(time.Now()) {
+		t.Errorf("unexpected daily session name: %q", id1.Name)
 	}
 }
 
-func TestSQLiteStore_DailySessionResetsOnNewDay(t *testing.T) {
+func TestSQLiteStore_DailySession_IsNormalSession(t *testing.T) {
 	store, err := NewStoreWithPath(":memory:")
 	if err != nil {
 		t.Fatalf("NewStoreWithPath failed: %v", err)
 	}
 	defer store.Close()
 
-	id, err := store.GetDailySession()
+	s, err := store.GetOrCreateDailySession()
 	if err != nil {
-		t.Fatalf("GetDailySession failed: %v", err)
+		t.Fatalf("GetOrCreateDailySession failed: %v", err)
 	}
-	if err := store.SaveSession(id, []Task{NewTask(todo, "Yesterday", "")}); err != nil {
+	if err := store.SaveSession(s.ID, []Task{NewTask(todo, "Today", "")}); err != nil {
 		t.Fatalf("SaveSession failed: %v", err)
 	}
 
-	// Age the session to yesterday.
-	sq := store.(*sqliteStore)
-	if _, err := sq.db.Exec(`UPDATE lists SET daily_date = '2000-01-01' WHERE id = ?`, id); err != nil {
-		t.Fatalf("failed to age daily_date: %v", err)
-	}
-
-	id2, err := store.GetDailySession()
+	// Reopening today keeps tasks; it behaves like any other session.
+	again, err := store.GetOrCreateDailySession()
 	if err != nil {
-		t.Fatalf("GetDailySession failed: %v", err)
+		t.Fatalf("GetOrCreateDailySession failed: %v", err)
 	}
-	if id2 != id {
-		t.Errorf("Expected same daily id, got %d != %d", id2, id)
+	if again.ID != s.ID {
+		t.Errorf("expected same session id, got %d != %d", again.ID, s.ID)
 	}
-
-	tasks, err := store.LoadSession(id)
+	tasks, err := store.LoadSession(s.ID)
 	if err != nil {
 		t.Fatalf("LoadSession failed: %v", err)
 	}
-	if len(tasks) != 0 {
-		t.Errorf("Expected tasks cleared on new day, got %d", len(tasks))
-	}
-
-	// Same-day reload keeps tasks.
-	if err := store.SaveSession(id, []Task{NewTask(todo, "Today", "")}); err != nil {
-		t.Fatalf("SaveSession failed: %v", err)
-	}
-	id3, _ := store.GetDailySession()
-	tasks, _ = store.LoadSession(id3)
 	if len(tasks) != 1 || tasks[0].Title() != "Today" {
-		t.Errorf("Same-day tasks should persist, got %v", tasks)
+		t.Errorf("daily session tasks should persist, got %v", tasks)
 	}
 }
 

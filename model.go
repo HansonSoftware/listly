@@ -38,7 +38,6 @@ type Model struct {
 	err          error
 	sessionID    int64
 	sessionName  string
-	isDaily      bool
 	toast        *Toast
 	sessions     []Session
 	sessionsList list.Model
@@ -538,7 +537,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					s := m.sessions[m.sessionsList.Index()]
 					m.sessionID = s.ID
 					m.sessionName = s.Name
-					m.isDaily = s.IsDaily
 					m.mode = normal
 					m.loadSessionTasks(s.ID)
 				}
@@ -565,7 +563,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							return nil
 						}
 						m.sessionID = id
-						m.isDaily = false
 						m.sessionName = name
 						m.mode = normal
 						return nil
@@ -574,16 +571,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				)
 				return m, nil
 			case "d":
-				id, err := m.store.GetDailySession()
+				s, err := m.store.GetOrCreateDailySession()
 				if err != nil {
 					m.err = err
 					return m, nil
 				}
-				m.sessionID = id
-				m.sessionName = "Daily"
-				m.isDaily = true
+				m.sessionID = s.ID
+				m.sessionName = s.Name
 				m.mode = normal
-				m.loadSessionTasks(id)
+				m.loadSessionTasks(s.ID)
 			case "r":
 				if len(m.sessions) > 0 {
 					s := m.sessions[m.sessionsList.Index()]

@@ -50,8 +50,8 @@ This easy to use TUI allows you to efficiently organize your TODO list with vim-
 ## Features
 
 - **Persistent sessions**: All sessions saved to SQLite database at `~/.local/share/listly/listly.db`
-- **Daily session**: Special session that doesn't auto-save (press `d` on welcome screen)
-- **Auto-save**: Changes saved automatically after each action (except daily sessions)
+- **Daily session**: Press `d` on the welcome screen to open today's note (named e.g. "Oct 05 2026 TODO"). Same day reopens it; a new day creates a new one. It's a normal session and auto-saves.
+- **Auto-save**: Changes saved automatically after each action
 - **Manual save**: Press `ctrl+s` to save with a custom name
 - **Undo**: Press `u` to undo last action (create, move, delete) - up to 50 actions
 - **Vim-style navigation**: `h/j/k/l`, `tab/shift+tab` for column switching
