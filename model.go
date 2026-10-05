@@ -569,6 +569,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					},
 					func() { m.mode = m.returnMode },
 				)
+				m.sessionForm.width = m.width
+				m.sessionForm.height = m.height
 				return m, nil
 			case "d":
 				s, err := m.store.GetOrCreateDailySession()
