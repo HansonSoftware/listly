@@ -31,8 +31,3 @@ func overlay(base, top string, x, y int) string {
 		lipgloss.NewLayer(top).X(x).Y(y).Z(1),
 	).Render()
 }
-
-// Height returns the toast card's row height.
-func (t *Toast) Height() int {
-	return lipgloss.Height(t.Render())
-}

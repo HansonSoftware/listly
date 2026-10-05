@@ -267,11 +267,11 @@ func (m *Model) recreateLists() {
 func (m Model) View() tea.View {
 	v := m.view()
 	if m.toast != nil {
-		y := m.height - m.toast.Height() - 1
-		if y < 0 {
-			y = 0
+		x := m.width - lipgloss.Width(m.toast.Render()) - 1
+		if x < 0 {
+			x = 0
 		}
-		v.Content = overlay(v.Content, m.toast.Render(), 1, y)
+		v.Content = overlay(v.Content, m.toast.Render(), x, 1)
 	}
 	return v
 }
