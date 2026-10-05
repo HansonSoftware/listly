@@ -88,8 +88,7 @@ var (
 			Bold(true)
 
 	TaskDescStyle = lipgloss.NewStyle().
-			Foreground(ColorMuted).
-			Italic(true)
+			Italic(true) // same fg as the title text so it stays readable on the selection highlight
 
 	// Card/overlay styles for floating forms
 	CardStyle = lipgloss.NewStyle().
