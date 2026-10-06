@@ -8,6 +8,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 type Task struct {
@@ -64,7 +65,7 @@ func (d SessionDelegate) Render(w io.Writer, m list.Model, index int, item list.
 
 	name := s.Name
 	if lipgloss.Width(name) > m.Width()-2 {
-		name = lipgloss.NewStyle().Width(m.Width() - 2).Render(name)
+		name = ansi.Truncate(name, m.Width()-2, "…")
 	}
 
 	fmt.Fprint(w, style.Render(name))
@@ -73,7 +74,7 @@ func (d SessionDelegate) Render(w io.Writer, m list.Model, index int, item list.
 // Custom delegate for task list items
 type TaskDelegate struct{}
 
-func (d TaskDelegate) Height() int                             { return 2 }
+func (d TaskDelegate) Height() int                             { return 1 }
 func (d TaskDelegate) Spacing() int                            { return 0 }
 func (d TaskDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
 func (d TaskDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
@@ -108,9 +109,10 @@ func (d TaskDelegate) Render(w io.Writer, m list.Model, index int, item list.Ite
 		title += "  " + TaskDescStyle.Render(task.Description())
 	}
 
-	// Truncate title to fit
+	// Truncate title to fit (Width() would wrap to a second line and warp
+	// the column; Truncate clips it instead).
 	if lipgloss.Width(title) > contentWidth {
-		title = lipgloss.NewStyle().Width(contentWidth).Render(title)
+		title = ansi.Truncate(title, contentWidth, "…")
 	}
 
 	var statusIndicator string

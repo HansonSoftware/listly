@@ -69,6 +69,7 @@ func boardShortHelp() []key.Binding {
 		key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "undo")),
 		key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
 		key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "sessions")),
+		key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "more")),
 		key.NewBinding(key.WithKeys("q"), key.WithHelp("q", "quit")),
 	}
 }
@@ -95,6 +96,10 @@ func New(store Store) *Model {
 	}
 
 	sl := list.New(nil, SessionDelegate{}, lipgloss.Width(Logo), 8)
+	// Ditch the charm list's left/right pagination keys; up/down/j/k and
+	// g/G are the only navigation we want.
+	sl.KeyMap.NextPage.Unbind()
+	sl.KeyMap.PrevPage.Unbind()
 	sl.Title = "Welcome!"
 	sl.SetStatusBarItemName("session", "sessions")
 	sl.SetShowHelp(false)
@@ -259,8 +264,13 @@ func (m *Model) recreateLists() {
 		m.lists[i] = list.New(items, delegate, layout.ColInternalWidth, layout.ColHeight)
 		m.lists[i].SetShowHelp(false)
 		m.lists[i].SetShowStatusBar(false)
+		m.lists[i].SetShowTitle(false) // no title bar; our column titles sit outside
 		m.lists[i].SetFilteringEnabled(true)
 		m.lists[i].Title = ""
+		// Ditch the charm list's left/right pagination keys; up/down/j/k and
+		// g/G are the only navigation we want.
+		m.lists[i].KeyMap.NextPage.Unbind()
+		m.lists[i].KeyMap.PrevPage.Unbind()
 	}
 }
 
