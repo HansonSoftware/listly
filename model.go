@@ -91,6 +91,11 @@ type sessionsLoadedMsg struct {
 	sessions []Session
 }
 
+// setMode is the single path for switching screens/modes.
+func (m *Model) setMode(md mode) {
+	m.mode = md
+}
+
 // history returns the undo/redo history for the active session.
 func (m *Model) history() *History {
 	return m.histories.get(m.sessionID)
@@ -231,6 +236,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case sessionsLoadedMsg:
+		m.err = nil // successful reload clears any earlier persistence error
 		m.sessions = msg.sessions
 		items := make([]list.Item, 0, len(msg.sessions))
 		for _, s := range msg.sessions {
@@ -241,6 +247,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case toastMsg:
 		m.toast = nil
+
+	case error:
+		m.err = msg // loadSessions surfaces store errors as msgs
 
 	case tea.KeyPressMsg:
 		if m.confirm != nil {

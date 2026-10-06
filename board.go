@@ -183,6 +183,7 @@ func (m *Model) loadSessionTasks(sessionID int64) {
 		m.err = err
 		return
 	}
+	m.err = nil // successful load clears any earlier persistence error
 	for i := range m.lists {
 		m.lists[i].SetItems(nil)
 	}
@@ -204,7 +205,7 @@ func (m *Model) normalKeys(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
 		m.Prev()
 	case "esc":
 		m.autoSave()
-		m.mode = welcome
+		m.setMode(welcome)
 		return m, m.loadSessions, true
 	case "right", "l", "tab":
 		m.Next()
@@ -227,18 +228,18 @@ func (m *Model) normalKeys(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
 		}
 	case "?":
 		m.returnMode = normal
-		m.mode = help
+		m.setMode(help)
 	case "/":
-		m.mode = filtering
+		m.setMode(filtering)
 		m.lists[m.focused].SetFilterState(list.Filtering)
 	case "n":
 		f := NewForm(m.focused)
 		f.width = m.width
 		f.height = m.height
-		f.onCancel = func() { m.mode = normal }
+		f.onCancel = func() { m.setMode(normal) }
 		f.onToast = func(text string) { m.toast = &Toast{text: text} }
 		m.form = f
-		m.mode = creation
+		m.setMode(creation)
 		return m, m.form.Init(), true
 	case "u":
 		m.undo()
@@ -259,12 +260,12 @@ func (m *Model) filteringKeys(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		// Let the list see the key so it can apply or cancel the
 		// filter, then return to normal mode.
 		m.lists[m.focused], _ = m.lists[m.focused].Update(msg)
-		m.mode = normal
+		m.setMode(normal)
 		return m, nil
 	}
 	m.lists[m.focused], _ = m.lists[m.focused].Update(msg)
 	if m.lists[m.focused].FilterState() != list.Filtering {
-		m.mode = normal
+		m.setMode(normal)
 	}
 	return m, nil
 }
@@ -293,7 +294,7 @@ func (m *Model) handleNewTask(msg Task) (tea.Model, tea.Cmd) {
 		},
 	)
 	if m.mode == creation {
-		m.mode = normal
+		m.setMode(normal)
 	}
 	return m, m.lists[task.status].InsertItem(idx, task)
 }

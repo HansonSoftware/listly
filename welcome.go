@@ -61,13 +61,13 @@ func (m *Model) welcomeKeys(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			s := m.sessions[m.sessionsList.Index()]
 			m.sessionID = s.ID
 			m.sessionName = s.Name
-			m.mode = normal
+			m.setMode(normal)
 			m.loadSessionTasks(s.ID)
 		}
 		return m, nil
 	case "?":
 		m.returnMode = welcome
-		m.mode = help
+		m.setMode(help)
 		return m, nil
 	case "n", "d", "r", "x":
 	default:
@@ -79,7 +79,7 @@ func (m *Model) welcomeKeys(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "n":
 		m.returnMode = welcome
-		m.mode = saving
+		m.setMode(saving)
 		m.sessionForm = NewSessionNameForm("Create New Session",
 			func(name string) tea.Cmd {
 				id, err := m.store.CreateSession(name)
@@ -87,45 +87,48 @@ func (m *Model) welcomeKeys(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 					m.err = err
 					return nil
 				}
+				m.err = nil
 				m.sessionID = id
 				m.sessionName = name
-				m.mode = normal
+				m.setMode(normal)
 				return nil
 			},
-			func() { m.mode = m.returnMode },
+			func() { m.setMode(m.returnMode) },
 		)
 		m.sessionForm.width = m.width
 		m.sessionForm.height = m.height
 		return m, nil
 	case "d":
-		s, err := m.store.GetOrCreateDailySession()
+			s, err := m.store.GetOrCreateDailySession()
 		if err != nil {
 			m.err = err
 			return m, nil
 		}
+		m.err = nil
 		m.sessionID = s.ID
 		m.sessionName = s.Name
-		m.mode = normal
+		m.setMode(normal)
 		m.loadSessionTasks(s.ID)
 	case "r":
 		if len(m.sessions) > 0 {
 			s := m.sessions[m.sessionsList.Index()]
 			m.returnMode = welcome
-			m.mode = saving
+			m.setMode(saving)
 			m.sessionForm = NewSessionNameForm("Rename Session",
 				func(name string) tea.Cmd {
 					if err := m.store.UpdateSessionName(s.ID, name); err != nil {
 						m.err = err
 						return nil
 					}
+					m.err = nil
 					if m.sessionID == s.ID {
 						m.sessionName = name
 					}
-					m.mode = welcome
+					m.setMode(welcome)
 					m.toast = &Toast{text: "Session renamed."}
 					return tea.Batch(m.loadSessions, toastTick())
 				},
-				func() { m.mode = m.returnMode },
+				func() { m.setMode(m.returnMode) },
 			)
 			m.sessionForm.width = m.width
 			m.sessionForm.height = m.height
@@ -142,6 +145,7 @@ func (m *Model) welcomeKeys(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 						m.err = err
 						return nil
 					}
+					m.err = nil
 					if m.sessionsList.Index() > 0 && m.sessionsList.Index() >= len(m.sessions)-1 {
 						m.sessionsList.Select(m.sessionsList.Index() - 1)
 					}

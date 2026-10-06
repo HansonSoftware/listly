@@ -64,7 +64,7 @@ func (m Model) helpView() string {
 func (m *Model) helpKeys(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "?", "esc", "enter":
-		m.mode = m.returnMode
+		m.setMode(m.returnMode)
 		return m, nil
 	case "ctrl+c", "q":
 		m.shutdown = true
