@@ -254,13 +254,24 @@ func (s *sqliteStore) DeleteSession(listID int64) error {
 }
 
 func getDBPath() string {
-	var home string
-	if runtime.GOOS == "windows" {
-		home = os.Getenv("APPDATA")
-	} else {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
 		home = os.Getenv("HOME")
 	}
-	return filepath.Join(home, ".local/share/listly", "listly.db")
+	switch runtime.GOOS {
+	case "windows":
+		if dir := os.Getenv("LOCALAPPDATA"); dir != "" {
+			return filepath.Join(dir, "listly", "listly.db")
+		}
+		if dir := os.Getenv("APPDATA"); dir != "" {
+			return filepath.Join(dir, "listly", "listly.db")
+		}
+		return filepath.Join(home, "AppData", "Local", "listly", "listly.db")
+	case "darwin":
+		return filepath.Join(home, "Library", "Application Support", "listly", "listly.db")
+	default:
+		return filepath.Join(home, ".local", "share", "listly", "listly.db")
+	}
 }
 
 var _ Store = (*sqliteStore)(nil) // Compile-time interface check
