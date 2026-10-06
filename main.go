@@ -8,8 +8,6 @@ import (
 )
 
 func main() {
-	fmt.Println("Starting up...")
-
 	store, err := NewStore()
 	if err != nil {
 		fmt.Println("Failed to initialize database:", err)
