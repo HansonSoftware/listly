@@ -7,50 +7,17 @@ import (
 )
 
 func (m Model) helpView() string {
-	var keybinds []struct {
-		key  string
-		desc string
-	}
-	if m.returnMode == welcome {
-		keybinds = []struct {
-			key  string
-			desc string
-		}{
-			{"↑ / k / ↓ / j", "Navigate sessions"},
-			{"Enter", "Open selected session"},
-			{"n", "Create new session"},
-			{"d", "Open daily session"},
-			{"r", "Rename selected session"},
-			{"x", "Delete selected session"},
-			{"?", "Show this help"},
-			{"q / Ctrl+c", "Quit"},
-		}
-	} else {
-		keybinds = []struct {
-			key  string
-			desc string
-		}{
-			{"h / ← / Shift+Tab", "Previous column"},
-			{"l / → / Tab", "Next column"},
-			{"Enter", "Move task to next column"},
-			{"n", "New task"},
-			{"x", "Delete selected task"},
-			{"u", "Undo last action"},
-			{"r", "Redo last undone action"},
-			{"Ctrl+s", "Save session"},
-			{"/", "Filter mode"},
-			{"esc", "Back to session menu"},
-			{"?", "Show this help"},
-			{"q / Ctrl+c", "Quit"},
-		}
+	keybinds := welcomeKeybinds
+	if m.returnMode != welcome {
+		keybinds = boardKeybinds
 	}
 
 	var lines []string
 	lines = append(lines, CardTitleStyle.Render("Keybinds"))
 	lines = append(lines, "")
-	for _, kb := range keybinds {
-		key := HelpKeybindStyle.Render(kb.key)
-		desc := HelpDescStyle.Render(kb.desc)
+	for _, b := range keybinds {
+		key := HelpKeybindStyle.Render(b.Help().Key)
+		desc := HelpDescStyle.Render(b.Help().Desc)
 		lines = append(lines, lipgloss.JoinHorizontal(lipgloss.Left, key, "  ", desc))
 	}
 	lines = append(lines, "")

@@ -89,8 +89,14 @@ func TestMainView_HelpBarVisible(t *testing.T) {
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
 
 	content := m.View().Content
-	if !strings.Contains(content, "delete") {
-		t.Errorf("help bar missing from mainView")
+	for _, want := range []string{"move", "new", "save", "more"} {
+		if !strings.Contains(content, want) {
+			t.Errorf("help bar missing %q", want)
+		}
+	}
+	// Only essentials in the footer; delete/undo/etc. live behind ?.
+	if strings.Contains(content, "delete") {
+		t.Errorf("help bar should not list delete; move it behind ?")
 	}
 	lines := strings.Count(content, "\n") + 1
 	if lines > 30 {

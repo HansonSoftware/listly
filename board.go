@@ -9,26 +9,49 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-func boardShortHelp() []key.Binding {
-	return []key.Binding{
-		key.NewBinding(key.WithKeys("tab", "h", "l"), key.WithHelp("←/→/tab", "columns")),
-		key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "move")),
-		key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "new")),
-		key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "delete")),
-		key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "undo")),
-		key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
-		key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "sessions")),
-		key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "more")),
-		key.NewBinding(key.WithKeys("q"), key.WithHelp("q", "quit")),
-	}
+// boardKeybinds is the single source of truth for board keybinds: the
+// footer help component and the ? view both render from this slice.
+var boardKeybinds = []key.Binding{
+	key.NewBinding(key.WithKeys("up", "k", "down", "j"), key.WithHelp("↑/↓/j/k", "navigate")),
+	key.NewBinding(key.WithKeys("g"), key.WithHelp("g/G", "top/bottom")),
+	key.NewBinding(key.WithKeys("tab", "h", "l", "left", "right", "shift+tab"), key.WithHelp("←/→/tab", "columns")),
+	key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "move")),
+	key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "new")),
+	key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "delete")),
+	key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "undo")),
+	key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "redo")),
+	key.NewBinding(key.WithKeys("ctrl+s"), key.WithHelp("ctrl+s", "save")),
+	key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
+	key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "sessions")),
+	key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "more")),
+	key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
 }
 
 // boardFooter implements help.KeyMap so the shared help component can
 // render the board footer.
 type boardFooter struct{}
 
-func (boardFooter) ShortHelp() []key.Binding  { return boardShortHelp() }
-func (boardFooter) FullHelp() [][]key.Binding { return [][]key.Binding{boardShortHelp()} }
+func (boardFooter) ShortHelp() []key.Binding {
+	return filterBindings(boardKeybinds, "move", "new", "save", "more")
+}
+func (boardFooter) FullHelp() [][]key.Binding { return [][]key.Binding{boardKeybinds} }
+
+// filterBindings returns the bindings of src whose help description matches
+// one of descs, preserving order — used to keep the bottom footer to just
+// the essentials (the full set remains in the ? view).
+func filterBindings(src []key.Binding, descs ...string) []key.Binding {
+	set := make(map[string]bool, len(descs))
+	for _, d := range descs {
+		set[d] = true
+	}
+	var out []key.Binding
+	for _, b := range src {
+		if set[b.Help().Desc] {
+			out = append(out, b)
+		}
+	}
+	return out
+}
 
 func (m *Model) Next() {
 	if m.focused == done {

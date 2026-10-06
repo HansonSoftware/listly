@@ -8,21 +8,27 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-func welcomeShortHelp() []key.Binding {
-	return []key.Binding{
-		key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "select")),
-		key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "new")),
-		key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "rename")),
-		key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "delete")),
-		key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "more")),
-	}
+// welcomeKeybinds is the single source of truth for session-menu keybinds:
+// the footer help component and the ? view both render from this slice.
+var welcomeKeybinds = []key.Binding{
+	key.NewBinding(key.WithKeys("up", "k", "down", "j"), key.WithHelp("↑/↓/j/k", "navigate")),
+	key.NewBinding(key.WithKeys("g"), key.WithHelp("g/G", "top/bottom")),
+	key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "select")),
+	key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "new")),
+	key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "daily")),
+	key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "rename")),
+	key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "delete")),
+	key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "more")),
+	key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
 }
 
 // welcomeFooter implements help.KeyMap for the session menu footer.
 type welcomeFooter struct{}
 
-func (welcomeFooter) ShortHelp() []key.Binding  { return welcomeShortHelp() }
-func (welcomeFooter) FullHelp() [][]key.Binding { return [][]key.Binding{welcomeShortHelp()} }
+func (welcomeFooter) ShortHelp() []key.Binding {
+	return filterBindings(welcomeKeybinds, "navigate", "select", "more")
+}
+func (welcomeFooter) FullHelp() [][]key.Binding { return [][]key.Binding{welcomeKeybinds} }
 
 func (m Model) welcomeView() string {
 	if len(m.sessions) == 0 {
