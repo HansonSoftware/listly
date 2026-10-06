@@ -167,6 +167,14 @@ var (
 				MarginTop(2).
 				Align(lipgloss.Center)
 
+	WelcomePromptStyle = lipgloss.NewStyle().
+				Foreground(ColorPrimary).
+				Bold(true)
+
+	SessionCountStyle = lipgloss.NewStyle().
+				Foreground(ColorMuted).
+				MarginBottom(1)
+
 	// Help text
 	HelpStyle = lipgloss.NewStyle().
 			Foreground(ColorMuted).

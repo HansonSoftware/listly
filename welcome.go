@@ -1,11 +1,14 @@
 package main
 
 import (
+	"fmt"
+
 	bubbleshelp "charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
 	"charm.land/lipgloss/v2"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // welcomeKeybinds is the single source of truth for session-menu keybinds:
@@ -43,7 +46,13 @@ func (m Model) welcomeView() string {
 
 	var lines []string
 	lines = append(lines, LogoStyle.Render(Logo))
-	lines = append(lines, m.sessionsList.View())
+	lines = append(lines, WelcomePromptStyle.Render("Select a session to continue."))
+	count := "session"
+	if len(m.sessions) != 1 {
+		count += "s"
+	}
+	lines = append(lines, SessionCountStyle.Render(fmt.Sprintf("%d %s", len(m.sessions), count)))
+	lines = append(lines, m.sessionsView())
 	wf := bubbleshelp.New()
 	wf.SetWidth(m.width)
 	lines = append(lines, lipgloss.NewStyle().Padding(0, 1).Render(wf.View(welcomeFooter{})))
@@ -53,6 +62,40 @@ func (m Model) welcomeView() string {
 		content = ErrorBannerStyle.Render("Error: "+m.err.Error()) + "\n" + content
 	}
 	return CenterIn(m.width, m.height, content)
+}
+
+// sessionsView renders the session list without the stock list.Model chrome
+// (no title bar, no status bar). Navigation still happens through
+// m.sessionsList; this is purely presentational.
+func (m Model) sessionsView() string {
+	w := m.sessionsList.Width()
+	h := m.sessionsList.Height()
+	if h < 1 {
+		h = 8
+	}
+	idx := m.sessionsList.Index()
+	start := 0
+	if idx >= h {
+		start = idx + 1 - h
+	}
+	end := start + h
+	if end > len(m.sessions) {
+		end = len(m.sessions)
+	}
+
+	var rows []string
+	for i := start; i < end; i++ {
+		name := m.sessions[i].Name
+		if lipgloss.Width(name) > w-2 {
+			name = ansi.Truncate(name, w-2, "…")
+		}
+		if i == idx {
+			rows = append(rows, SelectedTaskStyle.Bold(true).Width(w).Render(name))
+		} else {
+			rows = append(rows, TaskStyle.Width(w).Render(name))
+		}
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, rows...)
 }
 
 // welcomeKeys handles KeyPressMsg on the session menu. Navigation keys that
