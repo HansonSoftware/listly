@@ -10,20 +10,20 @@ import (
 type status int
 
 const (
-	todo       status = 0
-	completing        = 1
-	done              = 2
+	todo status = iota
+	completing
+	done
 )
 
 type mode int
 
 const (
-	welcome   mode = 0
-	normal         = 1
-	creation       = 2
-	filtering      = 3
-	saving         = 4
-	help           = 5
+	welcome mode = iota
+	normal
+	creation
+	filtering
+	saving
+	help
 )
 
 type Model struct {
