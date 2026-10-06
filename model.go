@@ -1,8 +1,6 @@
 package main
 
 import (
-	bubbleshelp "charm.land/bubbles/v2/help"
-	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/list"
 	"charm.land/lipgloss/v2"
 
@@ -50,43 +48,6 @@ type Model struct {
 	returnMode   mode
 }
 
-func welcomeShortHelp() []key.Binding {
-	return []key.Binding{
-		key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "select")),
-		key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "new")),
-		key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "rename")),
-		key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "delete")),
-		key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "more")),
-	}
-}
-
-func boardShortHelp() []key.Binding {
-	return []key.Binding{
-		key.NewBinding(key.WithKeys("tab", "h", "l"), key.WithHelp("←/→/tab", "columns")),
-		key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "move")),
-		key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "new")),
-		key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "delete")),
-		key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "undo")),
-		key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
-		key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "sessions")),
-		key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "more")),
-		key.NewBinding(key.WithKeys("q"), key.WithHelp("q", "quit")),
-	}
-}
-
-// boardFooter implements help.KeyMap so the shared help component can
-// render the board footer.
-type boardFooter struct{}
-
-func (boardFooter) ShortHelp() []key.Binding  { return boardShortHelp() }
-func (boardFooter) FullHelp() [][]key.Binding { return [][]key.Binding{boardShortHelp()} }
-
-// welcomeFooter implements help.KeyMap for the session menu footer.
-type welcomeFooter struct{}
-
-func (welcomeFooter) ShortHelp() []key.Binding  { return welcomeShortHelp() }
-func (welcomeFooter) FullHelp() [][]key.Binding { return [][]key.Binding{welcomeShortHelp()} }
-
 func New(store Store) *Model {
 	// Lists start with safe defaults; recreateLists replaces them with
 	// real items/dimensions on the first WindowSizeMsg.
@@ -130,22 +91,6 @@ type sessionsLoadedMsg struct {
 	sessions []Session
 }
 
-func (m *Model) Next() {
-	if m.focused == done {
-		m.focused = todo
-	} else {
-		m.focused++
-	}
-}
-
-func (m *Model) Prev() {
-	if m.focused == todo {
-		m.focused = done
-	} else {
-		m.focused--
-	}
-}
-
 // history returns the undo/redo history for the active session.
 func (m *Model) history() *History {
 	return m.histories.get(m.sessionID)
@@ -180,56 +125,6 @@ func (m *Model) redo() {
 	}
 }
 
-func (m *Model) DeleteTask() tea.Msg {
-	if m.lists[m.focused].SelectedItem() != nil {
-		l := &m.lists[m.focused]
-		item := l.SelectedItem()
-		task := item.(Task)
-		idx := l.Index()
-		l.RemoveItem(idx)
-		m.pushUndo(
-			func() {
-				m.lists[task.status].InsertItem(idx, item)
-				m.lists[task.status].Select(idx)
-			},
-			func() {
-				m.lists[task.status].RemoveItem(idx)
-			},
-		)
-		m.autoSave()
-		return nil
-	}
-	return nil
-}
-
-func (m *Model) MoveToNext() tea.Msg {
-	if m.lists[m.focused].SelectedItem() != nil {
-		selectedItem := m.lists[m.focused].SelectedItem()
-		before := selectedItem.(Task)
-		idx := m.lists[m.focused].Index()
-		after := before
-		after.Next()
-		m.lists[before.status].RemoveItem(idx)
-		newIdx := len(m.lists[after.status].Items())
-		m.lists[after.status].InsertItem(newIdx, list.Item(after))
-		m.pushUndo(
-			func() {
-				m.lists[after.status].RemoveItem(newIdx)
-				m.lists[before.status].InsertItem(idx, list.Item(before))
-				m.lists[before.status].Select(idx)
-			},
-			func() {
-				m.lists[before.status].RemoveItem(idx)
-				m.lists[after.status].InsertItem(newIdx, list.Item(after))
-				m.lists[after.status].Select(newIdx)
-			},
-		)
-		m.autoSave()
-		return nil
-	}
-	return nil
-}
-
 func (m *Model) autoSave() {
 	if m.sessionID == 0 {
 		return
@@ -246,32 +141,6 @@ func (m *Model) getAllTasks() []Task {
 		}
 	}
 	return tasks
-}
-
-func (m *Model) recreateLists() {
-	if m.width == 0 || m.height == 0 {
-		return
-	}
-	if len(m.lists) != 3 {
-		m.lists = make([]list.Model, 3)
-	}
-	layout := ColumnLayout(m.width, m.height)
-
-	delegate := TaskDelegate{}
-
-	for i := range m.lists {
-		items := m.lists[i].Items()
-		m.lists[i] = list.New(items, delegate, layout.ColInternalWidth, layout.ColHeight)
-		m.lists[i].SetShowHelp(false)
-		m.lists[i].SetShowStatusBar(false)
-		m.lists[i].SetShowTitle(false) // no title bar; our column titles sit outside
-		m.lists[i].SetFilteringEnabled(true)
-		m.lists[i].Title = ""
-		// Ditch the charm list's left/right pagination keys; up/down/j/k and
-		// g/G are the only navigation we want.
-		m.lists[i].KeyMap.NextPage.Unbind()
-		m.lists[i].KeyMap.PrevPage.Unbind()
-	}
 }
 
 func (m Model) View() tea.View {
@@ -327,155 +196,6 @@ func (m Model) view() tea.View {
 		return v
 	default:
 		return tea.NewView("")
-	}
-}
-
-func (m Model) welcomeView() string {
-	if len(m.sessions) == 0 {
-		content := lipgloss.JoinVertical(lipgloss.Center,
-			LogoStyle.Render(Logo),
-			WelcomeSubtitleStyle.Render("No sessions yet. Create one to get started."),
-			"",
-			WelcomeHelpStyle.Render("[n] New session    [d] Daily session    [q] Quit"),
-		)
-		return CenterIn(m.width, m.height, content)
-	}
-
-	var lines []string
-	lines = append(lines, LogoStyle.Render(Logo))
-	lines = append(lines, m.sessionsList.View())
-	wf := bubbleshelp.New()
-	wf.SetWidth(m.width)
-	lines = append(lines, lipgloss.NewStyle().Padding(0, 1).Render(wf.View(welcomeFooter{})))
-
-	content := lipgloss.JoinVertical(lipgloss.Left, lines...)
-	if m.err != nil {
-		content = ErrorBannerStyle.Render("Error: "+m.err.Error()) + "\n" + content
-	}
-	return CenterIn(m.width, m.height, content)
-}
-
-func (m Model) mainView() string {
-	if m.shutdown {
-		return ""
-	}
-
-	if !m.loaded {
-		return CenterIn(m.width, m.height, "Loading...")
-	}
-
-	titles := []string{
-		"Today's Agenda",
-		"Working On",
-		"Done",
-	}
-
-	layout := ColumnLayout(m.width, m.height)
-
-	var cols []string
-	for i := 0; i < 3; i++ {
-		view := m.lists[i].View()
-
-		title := titles[i]
-		if i == int(m.focused) {
-			title = FocusedColumnTitleStyle.Render("▸ " + title)
-		} else {
-			title = ColumnTitleStyle.Render("  " + title)
-		}
-
-		content := lipgloss.JoinVertical(lipgloss.Left, title, view)
-		content = lipgloss.NewStyle().MaxWidth(layout.ColContentWidth).Render(content)
-
-		if i == int(m.focused) {
-			cols = append(cols, FocusedColumnStyle.Width(layout.ColTotalWidth).Render(content))
-		} else {
-			cols = append(cols, ColumnStyle.Width(layout.ColTotalWidth).Render(content))
-		}
-	}
-
-	board := lipgloss.JoinHorizontal(lipgloss.Top, cols...)
-
-	board = lipgloss.NewStyle().MarginTop(1).Render(board)
-
-	title := BoardTitleStyle.Render(m.sessionName)
-
-	hf := bubbleshelp.New()
-	hf.SetWidth(m.width)
-	footer := lipgloss.NewStyle().Padding(0, 1).Render(hf.View(boardFooter{}))
-
-	parts := []string{title, board, footer}
-	if m.err != nil {
-		parts = append([]string{ErrorBannerStyle.Render("Error: " + m.err.Error())}, parts...)
-	}
-	return lipgloss.JoinVertical(lipgloss.Left, parts...)
-}
-
-func (m Model) helpView() string {
-	var keybinds []struct {
-		key  string
-		desc string
-	}
-	if m.returnMode == welcome {
-		keybinds = []struct {
-			key  string
-			desc string
-		}{
-			{"↑ / k / ↓ / j", "Navigate sessions"},
-			{"Enter", "Open selected session"},
-			{"n", "Create new session"},
-			{"d", "Open daily session"},
-			{"r", "Rename selected session"},
-			{"x", "Delete selected session"},
-			{"?", "Show this help"},
-			{"q / Ctrl+c", "Quit"},
-		}
-	} else {
-		keybinds = []struct {
-			key  string
-			desc string
-		}{
-			{"h / ← / Shift+Tab", "Previous column"},
-			{"l / → / Tab", "Next column"},
-			{"Enter", "Move task to next column"},
-			{"n", "New task"},
-			{"x", "Delete selected task"},
-			{"u", "Undo last action"},
-			{"r", "Redo last undone action"},
-			{"Ctrl+s", "Save session"},
-			{"/", "Filter mode"},
-			{"esc", "Back to session menu"},
-			{"?", "Show this help"},
-			{"q / Ctrl+c", "Quit"},
-		}
-	}
-
-	var lines []string
-	lines = append(lines, CardTitleStyle.Render("Keybinds"))
-	lines = append(lines, "")
-	for _, kb := range keybinds {
-		key := HelpKeybindStyle.Render(kb.key)
-		desc := HelpDescStyle.Render(kb.desc)
-		lines = append(lines, lipgloss.JoinHorizontal(lipgloss.Left, key, "  ", desc))
-	}
-	lines = append(lines, "")
-	lines = append(lines, HelpStyle.Render("Press ? or Esc to close"))
-
-	content := lipgloss.JoinVertical(lipgloss.Left, lines...)
-	card := CardStyle.Render(content)
-	return CenterIn(m.width, m.height, card)
-}
-
-func (m *Model) loadSessionTasks(sessionID int64) {
-	tasks, err := m.store.LoadSession(sessionID)
-	if err != nil {
-		m.err = err
-		return
-	}
-	for i := range m.lists {
-		m.lists[i].SetItems(nil)
-	}
-	for _, task := range tasks {
-		m.lists[task.status].InsertItem(len(m.lists[task.status].Items()), task)
 	}
 }
 
@@ -536,214 +256,19 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.sessionForm.Update(msg)
 			}
 		case welcome:
-			// Route list navigation to the sessions list for all keys we
-			// don't handle ourselves.
-			switch msg.String() {
-			case "ctrl+c", "q":
-				m.shutdown = true
-				return m, tea.Quit
-			case "enter":
-				if len(m.sessions) > 0 {
-					s := m.sessions[m.sessionsList.Index()]
-					m.sessionID = s.ID
-					m.sessionName = s.Name
-					m.mode = normal
-					m.loadSessionTasks(s.ID)
-				}
-				return m, nil
-			case "?":
-				m.returnMode = welcome
-				m.mode = help
-				return m, nil
-			case "n", "d", "r", "x":
-			default:
-				var cmd tea.Cmd
-				m.sessionsList, cmd = m.sessionsList.Update(msg)
+			return m.welcomeKeys(msg)
+		case normal:
+			if _, cmd, handled := m.normalKeys(msg); handled {
 				return m, cmd
 			}
-			switch msg.String() {
-			case "n":
-				m.returnMode = welcome
-				m.mode = saving
-				m.sessionForm = NewSessionNameForm("Create New Session",
-					func(name string) tea.Cmd {
-						id, err := m.store.CreateSession(name)
-						if err != nil {
-							m.err = err
-							return nil
-						}
-						m.sessionID = id
-						m.sessionName = name
-						m.mode = normal
-						return nil
-					},
-					func() { m.mode = m.returnMode },
-				)
-				m.sessionForm.width = m.width
-				m.sessionForm.height = m.height
-				return m, nil
-			case "d":
-				s, err := m.store.GetOrCreateDailySession()
-				if err != nil {
-					m.err = err
-					return m, nil
-				}
-				m.sessionID = s.ID
-				m.sessionName = s.Name
-				m.mode = normal
-				m.loadSessionTasks(s.ID)
-			case "r":
-				if len(m.sessions) > 0 {
-					s := m.sessions[m.sessionsList.Index()]
-					m.returnMode = welcome
-					m.mode = saving
-					m.sessionForm = NewSessionNameForm("Rename Session",
-						func(name string) tea.Cmd {
-							if err := m.store.UpdateSessionName(s.ID, name); err != nil {
-								m.err = err
-								return nil
-							}
-							if m.sessionID == s.ID {
-								m.sessionName = name
-							}
-							m.mode = welcome
-							m.toast = &Toast{text: "Session renamed."}
-							return tea.Batch(m.loadSessions, toastTick())
-						},
-						func() { m.mode = m.returnMode },
-					)
-					m.sessionForm.width = m.width
-					m.sessionForm.height = m.height
-					return m, nil
-				}
-			case "x":
-				if len(m.sessions) > 0 {
-					s := m.sessions[m.sessionsList.Index()]
-					m.confirm = NewConfirmDialog(
-						"Delete session '"+s.Name+"'?",
-						func() tea.Cmd {
-							m.confirm = nil
-							if err := m.store.DeleteSession(s.ID); err != nil {
-								m.err = err
-								return nil
-							}
-							if m.sessionsList.Index() > 0 && m.sessionsList.Index() >= len(m.sessions)-1 {
-								m.sessionsList.Select(m.sessionsList.Index() - 1)
-							}
-							return m.loadSessions
-						},
-						func() { m.confirm = nil },
-					)
-					m.confirm.width = m.width
-					m.confirm.height = m.height
-				}
-			}
-
-		case normal:
-			switch msg.String() {
-			case "ctrl+c", "q":
-				m.shutdown = true
-				return m, tea.Quit
-			case "left", "h", "shift+tab":
-				m.Prev()
-			case "esc":
-				m.autoSave()
-				m.mode = welcome
-				return m, m.loadSessions
-			case "right", "l", "tab":
-				m.Next()
-			case "enter":
-				m.MoveToNext()
-			case "x":
-				if m.lists[m.focused].SelectedItem() != nil {
-					task := m.lists[m.focused].SelectedItem().(Task)
-					m.confirm = NewConfirmDialog(
-						"Delete task '"+task.Title()+"'?",
-						func() tea.Cmd {
-							m.confirm = nil
-							m.DeleteTask()
-							return nil
-						},
-						func() { m.confirm = nil },
-					)
-					m.confirm.width = m.width
-					m.confirm.height = m.height
-				}
-			case "?":
-				m.returnMode = normal
-				m.mode = help
-			case "/":
-				m.mode = filtering
-				m.lists[m.focused].SetFilterState(list.Filtering)
-			case "n":
-				f := NewForm(m.focused)
-				f.width = m.width
-				f.height = m.height
-				f.onCancel = func() { m.mode = normal }
-				f.onToast = func(text string) { m.toast = &Toast{text: text} }
-				m.form = f
-				m.mode = creation
-				return m, m.form.Init()
-			case "u":
-				m.undo()
-			case "r":
-				m.redo()
-			case "ctrl+s":
-				m.autoSave()
-				m.toast = &Toast{text: "Session saved."}
-				return m, toastTick()
-			}
-
 		case filtering:
-			if msg.String() == "esc" || msg.String() == "enter" {
-				// Let the list see the key so it can apply or cancel the
-				// filter, then return to normal mode.
-				m.lists[m.focused], _ = m.lists[m.focused].Update(msg)
-				m.mode = normal
-				return m, nil
-			}
-			m.lists[m.focused], _ = m.lists[m.focused].Update(msg)
-			if m.lists[m.focused].FilterState() != list.Filtering {
-				m.mode = normal
-			}
-			return m, nil
-
+			return m.filteringKeys(msg)
 		case help:
-			switch msg.String() {
-			case "?", "esc", "enter":
-				m.mode = m.returnMode
-				return m, nil
-			case "ctrl+c", "q":
-				m.shutdown = true
-				return m, tea.Quit
-			}
+			return m.helpKeys(msg)
 		}
 
 	case Task:
-		task := msg
-		idx := len(m.lists[task.status].Items())
-		removeAt := func() {
-			items := m.lists[task.status].Items()
-			if idx < len(items) {
-				if t, ok := items[idx].(Task); ok && t.Title() == task.Title() {
-					m.lists[task.status].RemoveItem(idx)
-				}
-			}
-		}
-		m.pushUndo(
-			removeAt,
-			func() {
-				items := m.lists[task.status].Items()
-				if idx <= len(items) {
-					m.lists[task.status].InsertItem(idx, task)
-					m.lists[task.status].Select(idx)
-				}
-			},
-		)
-		if m.mode == creation {
-			m.mode = normal
-		}
-		return m, m.lists[task.status].InsertItem(idx, task)
+		return m.handleNewTask(msg)
 	}
 
 	// Update focused list, but only when a board is visible — forwarding
